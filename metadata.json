@@ -1,0 +1,10 @@
+{
+  "name": "AgriManage",
+  "description": "سامانه جامع مدیریت باغات پسته، پایش پسیل و بیماری‌ها، آنالیز آب، خاک و برگ، مدیریت تلفیقی IPM و نقشه‌های OpenStreetMap.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
