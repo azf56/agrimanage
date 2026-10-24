@@ -64,25 +64,54 @@ export interface Visit {
   cropYearStatus?: string; // سال بار / سال استراحت (ON / OFF)
   growthStage?: string; // مرحله رشدی: تورم جوانه، ارزنو، پر شدن مغز، خندانی، پس از برداشت و...
 
-  // آفات پسته
-  psyllid?: string; // وضعیت پسیل (شیره خشک)
+  // آفات حشره‌ای
+  psyllid?: string; // پسیل معمولی پسته
   psyllaDensity?: string; // تراکم پسیل (تعداد پوره یا حشره کامل در برگ)
-  miteStatus?: string; // کنه
-  stinkbugStatus?: string; // سن پسته
-  aphidStatus?: string; // شته
-  leafminerStatus?: string; // مگس یا پروانه برگخوار
+  stinkbugStatus?: string; // سن‌های پسته (سن سبز و...)
+  twigBorerStatus?: string; // سرشاخه‌خوار پسته
+  seedWaspStatus?: string; // زنبور مغزخوار پسته
+  trunkBorerStatus?: string; // تنه‌خوار (سوسک چوب‌خوار)
+  leopardMothStatus?: string; // کرم خراط
+  carobMothStatus?: string; // کرم گلوگاه / پروانه میوه
+  scaleInsectStatus?: string; // شپشک‌های سپردار
+  gallAphidStatus?: string; // شته‌های گال‌ساز
+  aphidStatus?: string; // سازگاری با نسخه‌های قبلی
+  leafminerStatus?: string; // سازگاری با نسخه‌های قبلی
   otherPests?: string;
 
-  // بیماری‌ها
-  gummosis?: string; // گموز (پوسیدگی طوقه و ریشه)
-  dieback?: string; // سرخشکیدگی
-  alternariaStatus?: string; // آلترناریا
-  botrytisStatus?: string; // بوتریتیس
-  rootRotStatus?: string; // پوسیدگی ریشه
-  cankerStatus?: string; // شانکر باکتریایی
+  // کنه‌ها
+  spiderMiteStatus?: string; // کنه تارعنکبوتی
+  otherFolivorousMitesStatus?: string; // سایر کنه‌های برگ‌خوار
+  miteStatus?: string; // سازگاری با نسخه‌های قبلی
 
-  // عوارض محیطی و فیزیولوژیک
-  salinityInjury?: string; // خسارت شوری (سوختگی حاشیه برگ)
+  // بیماری‌های قارچی
+  verticilliumStatus?: string; // پژمردگی ورتیسیلیومی
+  gummosis?: string; // پوسیدگی ریشه و طوقه (گموز)
+  dieback?: string; // سرشاخه‌خشکیدگی / بوتریوسفاریا
+  alternariaStatus?: string; // لکه برگی آلترناریایی (لکه سیاه)
+  aspergillusStatus?: string; // آلودگی آسپرژیلوسی میوه (خطر آفلاتوکسین)
+  septoriaStatus?: string; // لکه برگی سپتوریایی
+  armillariaStatus?: string; // پوسیدگی آرمیلاریایی ریشه
+  powderyMildewStatus?: string; // سفیدک سطحی
+  botrytisStatus?: string; // سازگاری
+  rootRotStatus?: string; // سازگاری
+
+  // بیماری‌های باکتریایی
+  bacterialBlightStatus?: string; // سوختگی باکتریایی
+  crownGallStatus?: string; // سرطان طوقه (گال طوقه)
+  cankerStatus?: string; // سازگاری
+
+  // فیتوپلاسما و ویروس
+  witchesBroomStatus?: string; // جاروک پسته (جارو جادویی / بوته‌ای شدن سرشاخه)
+
+  // نماتدها
+  rootKnotNematodeStatus?: string; // نماتد ریشه‌گره
+
+  // ناهنجاری‌های غیرزنده
+  salinityInjury?: string; // شوری خاک و آب
+  springFrostStatus?: string; // سرمازدگی بهاره
+  blankingAndNonSplittingStatus?: string; // پوکی و خندانی نشدن
+  zincBoronDeficiencyStatus?: string; // کمبود روی (روزت) و بور
   sunburnStatus?: string; // آفتاب‌سوختگی
   windDamage?: string; // آسیب باد
 

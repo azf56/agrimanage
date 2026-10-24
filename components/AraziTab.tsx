@@ -29,19 +29,23 @@ export const AraziTab: React.FC<AraziTabProps> = ({
   activeSubTab,
   onSubTabChange
 }) => {
-  const [subTab, setSubTabState] = useState<'lands' | 'owners' | 'water'>(activeSubTab || 'lands');
+  const isFarmer = user?.role === 'farmer';
+  const [subTab, setSubTabState] = useState<'lands' | 'owners' | 'water'>(
+    isFarmer && activeSubTab === 'owners' ? 'lands' : (activeSubTab || 'lands')
+  );
   const [searchTerm, setSearchTerm] = useState('');
 
   const setSubTab = (tab: 'lands' | 'owners' | 'water') => {
-    setSubTabState(tab);
-    if (onSubTabChange) onSubTabChange(tab);
+    const targetTab = isFarmer && tab === 'owners' ? 'lands' : tab;
+    setSubTabState(targetTab);
+    if (onSubTabChange) onSubTabChange(targetTab);
   };
 
   useEffect(() => {
     if (activeSubTab) {
-      setSubTabState(activeSubTab);
+      setSubTabState(isFarmer && activeSubTab === 'owners' ? 'lands' : activeSubTab);
     }
-  }, [activeSubTab]);
+  }, [activeSubTab, isFarmer]);
 
   // Lookup subsets
   const rootstockItems = lookups.filter(l => l.category === 'rootstocks_varieties' && l.isActive);
@@ -175,62 +179,68 @@ export const AraziTab: React.FC<AraziTabProps> = ({
           </div>
           <div>
             <h4 className="text-xs md:text-sm font-black text-gray-900 flex items-center gap-1.5">
-              مدیریت زنجیره اراضی: مالکان، باغات و منابع آب
+              {isFarmer ? 'فهرست باغات پسته و منابع آب اختصاصی شما' : 'مدیریت زنجیره اراضی: مالکان، باغات و منابع آب'}
             </h4>
             <p className="text-[11px] md:text-xs text-gray-600 font-bold mt-0.5">
-              برای شروع، ابتدا در تب <strong className="text-blue-700">«مالکان و باغداران»</strong> مشخصات مالک را تعریف کنید؛ سپس در تب <strong className="text-emerald-700">«باغات پسته»</strong> قطعه باغ را ثبت و به مالک متصل نمایید.
+              {isFarmer
+                ? 'در این بخش می‌توانید مشخصات قطعات باغ پسته و منابع آب ثبت‌شده به نام خود را مشاهده نمایید.'
+                : <>برای شروع، ابتدا در تب <strong className="text-blue-700">«مالکان و باغداران»</strong> مشخصات مالک را تعریف کنید؛ سپس در تب <strong className="text-emerald-700">«باغات پسته»</strong> قطعه باغ را ثبت و به مالک متصل نمایید.</>}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-end md:self-center shrink-0">
-          <button
-            onClick={() => {
-              setEditingOwner(null);
-              setOwnerForm({ name: '', nationalId: '', mobile: '', phone: '' });
-              setShowOwnerModal(true);
-            }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm transition"
-          >
-            <Plus className="w-4 h-4" /> ثبت مالک جدید
-          </button>
-          <button
-            onClick={() => {
-              setEditingLand(null);
-              setLandForm({
-                name: '', areaHectares: 1.0, ownerId: owners[0]?.id || '',
-                waterSourceId: waterSources[0]?.id || '',
-                pistachioRootstock: 'پیوند اکبری روی پایه بادامی',
-                plantingYear: 1390, irrigationSystem: 'قطره‌ای تحت فشار',
-                irrigationPeriod: '۲۴ روزه', latitude: 35.118, longitude: 57.184
-              });
-              setShowLandModal(true);
-            }}
-            className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm transition"
-          >
-            <Plus className="w-4 h-4" /> ثبت باغ جدید
-          </button>
-        </div>
+        {!isFarmer && (
+          <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+            <button
+              onClick={() => {
+                setEditingOwner(null);
+                setOwnerForm({ name: '', nationalId: '', mobile: '', phone: '' });
+                setShowOwnerModal(true);
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm transition"
+            >
+              <Plus className="w-4 h-4" /> ثبت مالک جدید
+            </button>
+            <button
+              onClick={() => {
+                setEditingLand(null);
+                setLandForm({
+                  name: '', areaHectares: 1.0, ownerId: owners[0]?.id || '',
+                  waterSourceId: waterSources[0]?.id || '',
+                  pistachioRootstock: 'پیوند اکبری روی پایه بادامی',
+                  plantingYear: 1390, irrigationSystem: 'قطره‌ای تحت فشار',
+                  irrigationPeriod: '۲۴ روزه', latitude: 35.118, longitude: 57.184
+                });
+                setShowLandModal(true);
+              }}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm transition"
+            >
+              <Plus className="w-4 h-4" /> ثبت باغ جدید
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Subtabs header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
         <div className="flex bg-gray-100 p-1 rounded-2xl w-full md:w-auto overflow-x-auto scrollbar-none">
-          <button
-            onClick={() => setSubTab('owners')}
-            className={`flex-1 md:flex-none px-5 py-2.5 rounded-xl font-black text-xs transition flex items-center justify-center gap-2 whitespace-nowrap ${
-              subTab === 'owners' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Users className="w-4 h-4" /> ۱. مالکان و باغداران ({owners.length})
-          </button>
+          {!isFarmer && (
+            <button
+              onClick={() => setSubTab('owners')}
+              className={`flex-1 md:flex-none px-5 py-2.5 rounded-xl font-black text-xs transition flex items-center justify-center gap-2 whitespace-nowrap ${
+                subTab === 'owners' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Users className="w-4 h-4" /> ۱. مالکان و باغداران ({owners.length})
+            </button>
+          )}
           <button
             onClick={() => setSubTab('lands')}
             className={`flex-1 md:flex-none px-5 py-2.5 rounded-xl font-black text-xs transition flex items-center justify-center gap-2 whitespace-nowrap ${
               subTab === 'lands' ? 'bg-emerald-700 text-white shadow-md' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            <Trees className="w-4 h-4" /> ۲. باغات پسته ({lands.length})
+            <Trees className="w-4 h-4" /> {isFarmer ? `باغات پسته من (${lands.length})` : `۲. باغات پسته (${lands.length})`}
           </button>
           <button
             onClick={() => setSubTab('water')}
@@ -238,7 +248,7 @@ export const AraziTab: React.FC<AraziTabProps> = ({
               subTab === 'water' ? 'bg-teal-700 text-white shadow-md' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            <Droplets className="w-4 h-4" /> ۳. منابع آب و چاه‌ها ({waterSources.length})
+            <Droplets className="w-4 h-4" /> {isFarmer ? `منابع آب (${waterSources.length})` : `۳. منابع آب و چاه‌ها (${waterSources.length})`}
           </button>
         </div>
 
@@ -254,7 +264,7 @@ export const AraziTab: React.FC<AraziTabProps> = ({
             />
           </div>
 
-          {subTab === 'lands' && (
+          {!isFarmer && subTab === 'lands' && (
             <button
               onClick={() => {
                 setEditingLand(null);
@@ -273,7 +283,7 @@ export const AraziTab: React.FC<AraziTabProps> = ({
             </button>
           )}
 
-          {subTab === 'owners' && (
+          {!isFarmer && subTab === 'owners' && (
             <button
               onClick={() => {
                 setEditingOwner(null);
@@ -286,7 +296,7 @@ export const AraziTab: React.FC<AraziTabProps> = ({
             </button>
           )}
 
-          {subTab === 'water' && (
+          {!isFarmer && subTab === 'water' && (
             <button
               onClick={() => {
                 setEditingWater(null);
@@ -311,30 +321,32 @@ export const AraziTab: React.FC<AraziTabProps> = ({
                   <div className="p-3 bg-emerald-50 text-emerald-800 rounded-2xl">
                     <Trees className="w-5 h-5" />
                   </div>
-                  <div className="flex items-center gap-1.5 opacity-80 group-hover:opacity-100">
-                    <button 
-                      onClick={() => {
-                        setEditingLand(land);
-                        setLandForm(land);
-                        setShowLandModal(true);
-                      }}
-                      className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition"
-                      title="ویرایش"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => {
-                        if (confirm(`آیا از حذف باغ ${land.name || land.title} اطمینان دارید؟`)) {
-                          setLands(prev => prev.filter(l => l.id !== land.id));
-                        }
-                      }}
-                      className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition"
-                      title="حذف"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  {!isFarmer && (
+                    <div className="flex items-center gap-1.5 opacity-80 group-hover:opacity-100">
+                      <button 
+                        onClick={() => {
+                          setEditingLand(land);
+                          setLandForm(land);
+                          setShowLandModal(true);
+                        }}
+                        className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition"
+                        title="ویرایش"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (confirm(`آیا از حذف باغ ${land.name || land.title} اطمینان دارید؟`)) {
+                            setLands(prev => prev.filter(l => l.id !== land.id));
+                          }
+                        }}
+                        className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition"
+                        title="حذف"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <h3 className="font-black text-gray-800 text-base mb-1">{land.name || land.title}</h3>
@@ -540,28 +552,30 @@ export const AraziTab: React.FC<AraziTabProps> = ({
                   <div className="p-3 bg-blue-50 text-blue-800 rounded-2xl">
                     <Droplets className="w-5 h-5" />
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <button 
-                      onClick={() => {
-                        setEditingWater(water);
-                        setWaterForm(water);
-                        setShowWaterModal(true);
-                      }}
-                      className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => {
-                        if (confirm(`آیا از حذف منبع آب ${water.name} مطمئن هستید؟`)) {
-                          setWaterSources(prev => prev.filter(w => w.id !== water.id));
-                        }
-                      }}
-                      className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  {!isFarmer && (
+                    <div className="flex items-center gap-1.5">
+                      <button 
+                        onClick={() => {
+                          setEditingWater(water);
+                          setWaterForm(water);
+                          setShowWaterModal(true);
+                        }}
+                        className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (confirm(`آیا از حذف منبع آب ${water.name} مطمئن هستید؟`)) {
+                            setWaterSources(prev => prev.filter(w => w.id !== water.id));
+                          }
+                        }}
+                        className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <h3 className="font-black text-gray-800 text-base mb-1">{water.name}</h3>

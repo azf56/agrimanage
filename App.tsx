@@ -335,17 +335,50 @@ export const App: React.FC = () => {
     );
   }
 
+  // Scope data for Farmer role so farmers only see their own lands, visits, analyses, tasks & water sources
+  const isFarmer = currentUser?.role === 'farmer';
+  const farmerOwnerId = currentUser?.ownerId || currentUser?.farmerId || owners.find(o => o.userId === currentUser?.id || o.mobile === currentUser?.username)?.id;
+
+  const visibleOwners = isFarmer
+    ? owners.filter(o => o.id === farmerOwnerId || o.userId === currentUser?.id || o.mobile === currentUser?.username)
+    : owners;
+
+  const visibleLands = isFarmer
+    ? lands.filter(l => l.ownerId === farmerOwnerId || l.farmerId === farmerOwnerId)
+    : lands;
+
+  const visibleLandIds = new Set(visibleLands.map(l => l.id));
+  const visibleWaterSourceIds = new Set(visibleLands.map(l => l.waterSourceId).filter(Boolean));
+
+  const visibleWaterSources = isFarmer
+    ? waterSources.filter(w => visibleWaterSourceIds.has(w.id))
+    : waterSources;
+
+  const visibleVisits = isFarmer
+    ? visits.filter(v => visibleLandIds.has(v.landId))
+    : visits;
+
+  const visibleLabAnalyses = isFarmer
+    ? labAnalyses.filter(a => visibleLandIds.has(a.landId))
+    : labAnalyses;
+
+  const visibleTasks = isFarmer
+    ? tasks.filter(t => visibleLandIds.has(t.landId))
+    : tasks;
+
   // Count unconfirmed tasks or alerts for badges
-  const pendingTasksCount = tasks.filter(t => t.farmerDone && !t.isConfirmed).length;
-  const criticalVisitsCount = visits.filter(v => v.psyllidSeverity === 'خیلی شدید' || v.psyllidSeverity === 'شدید').length;
+  const pendingTasksCount = isFarmer
+    ? visibleTasks.filter(t => !t.farmerDone).length
+    : visibleTasks.filter(t => t.farmerDone && !t.isConfirmed).length;
+  const criticalVisitsCount = visibleVisits.filter(v => (v as any).psyllidSeverity === 'خیلی شدید' || (v as any).psyllidSeverity === 'شدید' || (v.psyllid && v.psyllid.includes('شدید'))).length;
 
   const getTabLabel = (tab: ActiveTab) => {
     switch (tab) {
       case 'home': return { title: 'داشبورد جامع و آمار باغات', category: 'پیشخوان و پایش' };
       case 'calendar': return { title: 'تقویم زراعی و وضعیت زنده هواشناسی', category: 'پیشخوان و پایش' };
-      case 'owners': return { title: 'اطلاعات مالکان و باغداران', category: 'عملیات و باغات' };
-      case 'arazi': return { title: 'مدیریت باغات پسته و منابع آب', category: 'عملیات و باغات' };
-      case 'visits': return { title: 'پایش میدانی و بازدیدهای کارشناسی پسیل', category: 'عملیات و باغات' };
+      case 'owners': return { title: 'مدیریت مالکان / باغات / منابع آب', category: 'عملیات و باغات' };
+      case 'arazi': return { title: 'مدیریت مالکان / باغات / منابع آب', category: 'عملیات و باغات' };
+      case 'visits': return { title: 'بازدید و پایش میدانی باغات', category: 'عملیات و باغات' };
       case 'analyses': return { title: 'آزمایشگاه و آنالیز آب، خاک و برگ', category: 'عملیات و باغات' };
       case 'tasks': return { title: 'برنامه‌های مراقبت و دستورالعمل‌های تلفیقی (IPM)', category: 'عملیات و باغات' };
       case 'map': return { title: 'نقشه هوایی و جغرافیایی باغات', category: 'ابزارها و ارتباطات' };
@@ -368,8 +401,8 @@ export const App: React.FC = () => {
         araziSubTab={araziSubTab}
         setAraziSubTab={setAraziSubTab}
         currentUser={currentUser}
-        landsCount={lands.length}
-        ownersCount={owners.length}
+        landsCount={visibleLands.length}
+        ownersCount={visibleOwners.length}
         lookupsCount={lookups.length}
         pendingTasksCount={pendingTasksCount}
         criticalVisitsCount={criticalVisitsCount}
@@ -379,7 +412,7 @@ export const App: React.FC = () => {
         setIsCollapsed={setIsSidebarCollapsed}
         onLogout={handleLogout}
         onOpenPasswordModal={() => setShowPasswordChangeModal(true)}
-        onOpenCpanelModal={() => setShowCpanelModal(true)}
+        onOpenCpanelModal={isFarmer ? undefined : () => setShowCpanelModal(true)}
         isOnline={isOnline}
         pendingSyncCount={pendingSyncCount}
         onTriggerSync={triggerFullSync}
@@ -452,15 +485,17 @@ export const App: React.FC = () => {
                 <RefreshCw className={`w-3 h-3 text-gray-400 ${isSyncing ? 'animate-spin' : ''}`} />
               </button>
 
-              {/* cPanel Database & Mobile API Modal Trigger */}
-              <button
-                onClick={() => setShowCpanelModal(true)}
-                className="hidden lg:flex items-center gap-1.5 bg-teal-50 border border-teal-200 text-teal-800 hover:bg-teal-100 px-3 py-1.5 rounded-2xl text-xs font-black transition shadow-2xs"
-                title="مشاهده اسکریپت MySQL هاست cPanel و وب‌سرویس اپ موبایل"
-              >
-                <Database className="w-3.5 h-3.5 text-teal-700" />
-                <span>دیتابیس cPanel و API</span>
-              </button>
+              {/* cPanel Database & Mobile API Modal Trigger (Hidden for Farmer) */}
+              {!isFarmer && (
+                <button
+                  onClick={() => setShowCpanelModal(true)}
+                  className="hidden lg:flex items-center gap-1.5 bg-teal-50 border border-teal-200 text-teal-800 hover:bg-teal-100 px-3 py-1.5 rounded-2xl text-xs font-black transition shadow-2xs"
+                  title="مشاهده اسکریپت MySQL هاست cPanel و وب‌سرویس اپ موبایل"
+                >
+                  <Database className="w-3.5 h-3.5 text-teal-700" />
+                  <span>دیتابیس cPanel و API</span>
+                </button>
+              )}
 
               {/* Date & Weather Indicator */}
               <div className="hidden xl:flex items-center gap-2 bg-emerald-50 text-emerald-900 border border-emerald-200/80 px-3.5 py-1.5 rounded-2xl text-xs font-bold">
@@ -469,14 +504,16 @@ export const App: React.FC = () => {
 
               {/* Quick Actions */}
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setActiveTab('visits')}
-                  className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5"
-                  title="ثبت پایش و بازدید جدید"
-                >
-                  <ClipboardCheck className="w-4 h-4" />
-                  <span className="hidden sm:inline">ثبت بازدید</span>
-                </button>
+                {!isFarmer && (
+                  <button
+                    onClick={() => setActiveTab('visits')}
+                    className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5"
+                    title="ثبت پایش و بازدید جدید"
+                  >
+                    <ClipboardCheck className="w-4 h-4" />
+                    <span className="hidden sm:inline">ثبت بازدید</span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => setShowPasswordChangeModal(true)}
@@ -506,17 +543,17 @@ export const App: React.FC = () => {
           <div className="min-h-[500px]">
           {activeTab === 'home' && (
             <DashboardTab
-              owners={owners}
-              lands={lands}
-              waterSources={waterSources}
-              visits={visits}
-              labAnalyses={labAnalyses}
-              tasks={tasks}
+              owners={visibleOwners}
+              lands={visibleLands}
+              waterSources={visibleWaterSources}
+              visits={visibleVisits}
+              labAnalyses={visibleLabAnalyses}
+              tasks={visibleTasks}
               user={currentUser}
               onNavigate={(tab) => {
                 if (tab === 'owners') {
                   setActiveTab('owners');
-                  setAraziSubTab('owners');
+                  setAraziSubTab(isFarmer ? 'lands' : 'owners');
                 } else {
                   setActiveTab(tab as ActiveTab);
                 }
@@ -527,36 +564,39 @@ export const App: React.FC = () => {
           {activeTab === 'calendar' && (
             <div className="space-y-6">
               <JalaliWeatherCalendar
-                lands={lands}
-                visits={visits}
-                tasks={tasks}
+                lands={visibleLands}
+                visits={visibleVisits}
+                tasks={visibleTasks}
               />
             </div>
           )}
 
           {(activeTab === 'arazi' || activeTab === 'owners') && (
             <AraziTab
-              owners={owners}
+              owners={visibleOwners}
               setOwners={handleUpdateOwners}
-              lands={lands}
+              lands={visibleLands}
               setLands={handleUpdateLands}
-              waterSources={waterSources}
+              waterSources={visibleWaterSources}
               setWaterSources={handleUpdateWaterSources}
               user={currentUser}
               lookups={lookups}
-              activeSubTab={activeTab === 'owners' ? 'owners' : araziSubTab}
-              onSubTabChange={(tab) => setAraziSubTab(tab)}
+              activeSubTab={araziSubTab}
+              onSubTabChange={(tab) => {
+                setAraziSubTab(tab);
+                setActiveTab('arazi');
+              }}
             />
           )}
 
           {activeTab === 'visits' && (
             <VisitsTab
-              visits={visits}
+              visits={visibleVisits}
               setVisits={handleUpdateVisits}
-              tasks={tasks}
+              tasks={visibleTasks}
               setTasks={handleUpdateTasks}
-              lands={lands}
-              owners={owners}
+              lands={visibleLands}
+              owners={visibleOwners}
               user={currentUser}
               lookups={lookups}
               onNavigateToTasks={() => setActiveTab('tasks')}
@@ -565,10 +605,10 @@ export const App: React.FC = () => {
 
           {activeTab === 'analyses' && (
             <AnalysesTab
-              labAnalyses={labAnalyses}
+              labAnalyses={visibleLabAnalyses}
               setLabAnalyses={handleUpdateLabAnalyses}
-              lands={lands}
-              owners={owners}
+              lands={visibleLands}
+              owners={visibleOwners}
               user={currentUser}
               lookups={lookups}
             />
@@ -576,12 +616,12 @@ export const App: React.FC = () => {
 
           {activeTab === 'tasks' && (
             <TasksTab
-              tasks={tasks}
+              tasks={visibleTasks}
               setTasks={handleUpdateTasks}
-              visits={visits}
+              visits={visibleVisits}
               setVisits={handleUpdateVisits}
-              lands={lands}
-              owners={owners}
+              lands={visibleLands}
+              owners={visibleOwners}
               user={currentUser}
               onNavigateToVisits={() => setActiveTab('visits')}
             />
@@ -589,9 +629,9 @@ export const App: React.FC = () => {
 
           {activeTab === 'map' && (
             <MapReport
-              lands={lands}
-              waterSources={waterSources}
-              labAnalyses={labAnalyses}
+              lands={visibleLands}
+              waterSources={visibleWaterSources}
+              labAnalyses={visibleLabAnalyses}
             />
           )}
 
@@ -599,12 +639,12 @@ export const App: React.FC = () => {
             <ChatTab
               messages={messages}
               setMessages={handleUpdateMessages}
-              owners={owners}
+              owners={visibleOwners}
               user={currentUser}
             />
           )}
 
-          {activeTab === 'lookups' && (
+          {activeTab === 'lookups' && !isFarmer && (
             <LookupsTab
               lookups={lookups}
               setLookups={handleUpdateLookups}
@@ -612,7 +652,7 @@ export const App: React.FC = () => {
             />
           )}
 
-          {activeTab === 'users' && (
+          {activeTab === 'users' && !isFarmer && (
             <UsersTab
               users={users}
               setUsers={handleUpdateUsers}

@@ -326,7 +326,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            {activeSubTab === 'tasks' && (
+            {activeSubTab === 'tasks' && user?.role !== 'farmer' && (
               <button
                 onClick={() => setShowModal(true)}
                 className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md transition"
@@ -356,28 +356,30 @@ export const TasksTab: React.FC<TasksTabProps> = ({
             </span>
           </button>
 
-          <button
-            onClick={() => setActiveSubTab('recommendations')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition ${
-              activeSubTab === 'recommendations'
-                ? 'bg-emerald-700 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>توصیه‌ها و پیشنهادات پایش میدانی</span>
-            {pendingRecommendationsCount > 0 ? (
-              <span className="text-[10px] bg-amber-500 text-amber-950 px-2 py-0.5 rounded-full font-mono font-bold animate-pulse">
-                {pendingRecommendationsCount} در انتظار صدور
-              </span>
-            ) : (
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
-                activeSubTab === 'recommendations' ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700'
-              }`}>
-                {visitRecommendations.length}
-              </span>
-            )}
-          </button>
+          {user?.role !== 'farmer' && (
+            <button
+              onClick={() => setActiveSubTab('recommendations')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition ${
+                activeSubTab === 'recommendations'
+                  ? 'bg-emerald-700 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>توصیه‌ها و پیشنهادات پایش میدانی</span>
+              {pendingRecommendationsCount > 0 ? (
+                <span className="text-[10px] bg-amber-500 text-amber-950 px-2 py-0.5 rounded-full font-mono font-bold animate-pulse">
+                  {pendingRecommendationsCount} در انتظار صدور
+                </span>
+              ) : (
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                  activeSubTab === 'recommendations' ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700'
+                }`}>
+                  {visitRecommendations.length}
+                </span>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -550,17 +552,19 @@ export const TasksTab: React.FC<TasksTabProps> = ({
                         </button>
                       )}
 
-                      <button
-                        onClick={() => {
-                          if (confirm('آیا از حذف این دستورالعمل مطمئن هستید؟')) {
-                            setTasks(prev => prev.filter(t => t.id !== task.id));
-                          }
-                        }}
-                        className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                        title="حذف وظیفه"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                      {user?.role !== 'farmer' && (
+                        <button
+                          onClick={() => {
+                            if (confirm('آیا از حذف این دستورالعمل مطمئن هستید؟')) {
+                              setTasks(prev => prev.filter(t => t.id !== task.id));
+                            }
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                          title="حذف وظیفه"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -571,12 +575,14 @@ export const TasksTab: React.FC<TasksTabProps> = ({
               <div className="bg-white rounded-3xl border border-gray-200 p-8 text-center text-gray-400 space-y-3">
                 <ClipboardCheck className="w-10 h-10 mx-auto text-gray-300" />
                 <p className="font-bold text-xs">هیچ دستورالعمل یا وظیفه‌ای با فیلترهای انتخابی یافت نشد.</p>
-                <button
-                  onClick={() => setShowModal(true)}
-                  className="inline-flex items-center gap-1.5 bg-emerald-700 text-white text-xs font-black px-4 py-2 rounded-xl"
-                >
-                  <Plus className="w-4 h-4" /> تعریف دستورالعمل جدید
-                </button>
+                {user?.role !== 'farmer' && (
+                  <button
+                    onClick={() => setShowModal(true)}
+                    className="inline-flex items-center gap-1.5 bg-emerald-700 text-white text-xs font-black px-4 py-2 rounded-xl"
+                  >
+                    <Plus className="w-4 h-4" /> تعریف دستورالعمل جدید
+                  </button>
+                )}
               </div>
             )}
           </div>

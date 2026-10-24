@@ -33,7 +33,7 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
 }) => {
   const navItems = [
     { id: 'home' as ActiveTab, label: 'داشبورد', icon: Home },
-    { id: 'arazi' as ActiveTab, label: 'اراضی و باغات', icon: Layers },
+    { id: 'arazi' as ActiveTab, label: 'مالکان / باغات', icon: Layers },
     { id: 'visits' as ActiveTab, label: 'پایش و بازدید', icon: ClipboardCheck },
     { id: 'tasks' as ActiveTab, label: 'دستورالعمل‌ها', icon: CheckSquare },
     { id: 'chat' as ActiveTab, label: 'مشاوره', icon: MessageSquare }

@@ -110,32 +110,34 @@ export const AnalysesTab: React.FC<AnalysesTabProps> = ({
             />
           </div>
 
-          <button
-            onClick={() => {
-              setEditingAnalysis(null);
-              setForm({
-                landId: lands[0]?.id || '',
-                analysisDate: '۱۴۰۴/۰۱/۲۰',
-                soilEc: 3.2,
-                soilPh: 7.6,
-                soilTexture: 'شنی لومی (Sandy Loam)',
-                soilTnv: 18.5,
-                soilOc: 0.85,
-                soilSar: 3.1,
-                leafN: 2.3,
-                leafP: 0.16,
-                leafRefK: 1.45,
-                leafFe: 92,
-                leafZn: 18,
-                leafB: 48,
-                leafInterpretation: ''
-              });
-              setShowModal(true);
-            }}
-            className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md transition"
-          >
-            <Plus className="w-4 h-4" /> ثبت برگه آنالیز جدید
-          </button>
+          {user?.role !== 'farmer' && (
+            <button
+              onClick={() => {
+                setEditingAnalysis(null);
+                setForm({
+                  landId: lands[0]?.id || '',
+                  analysisDate: '۱۴۰۴/۰۱/۲۰',
+                  soilEc: 3.2,
+                  soilPh: 7.6,
+                  soilTexture: 'شنی لومی (Sandy Loam)',
+                  soilTnv: 18.5,
+                  soilOc: 0.85,
+                  soilSar: 3.1,
+                  leafN: 2.3,
+                  leafP: 0.16,
+                  leafRefK: 1.45,
+                  leafFe: 92,
+                  leafZn: 18,
+                  leafB: 48,
+                  leafInterpretation: ''
+                });
+                setShowModal(true);
+              }}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md transition"
+            >
+              <Plus className="w-4 h-4" /> ثبت برگه آنالیز جدید
+            </button>
+          )}
         </div>
       </div>
 
@@ -161,28 +163,32 @@ export const AnalysesTab: React.FC<AnalysesTabProps> = ({
                     >
                       <Eye className="w-4 h-4" />
                     </button>
-                    <button
-                      onClick={() => {
-                        setEditingAnalysis(analysis);
-                        setForm(analysis);
-                        setShowModal(true);
-                      }}
-                      className="p-1.5 bg-gray-50 text-gray-700 rounded-lg hover:bg-emerald-50 hover:text-emerald-700 transition"
-                      title="ویرایش"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (confirm('آیا از حذف این آنالیز مطمئن هستید؟')) {
-                          setLabAnalyses(prev => prev.filter(a => a.id !== analysis.id));
-                        }
-                      }}
-                      className="p-1.5 bg-gray-50 text-gray-600 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition"
-                      title="حذف"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {user?.role !== 'farmer' && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setEditingAnalysis(analysis);
+                            setForm(analysis);
+                            setShowModal(true);
+                          }}
+                          className="p-1.5 bg-gray-50 text-gray-700 rounded-lg hover:bg-emerald-50 hover:text-emerald-700 transition"
+                          title="ویرایش"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm('آیا از حذف این آنالیز مطمئن هستید؟')) {
+                              setLabAnalyses(prev => prev.filter(a => a.id !== analysis.id));
+                            }
+                          }}
+                          className="p-1.5 bg-gray-50 text-gray-600 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition"
+                          title="حذف"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 

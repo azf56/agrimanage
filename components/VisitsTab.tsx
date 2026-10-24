@@ -50,27 +50,75 @@ export const VisitsTab: React.FC<VisitsTabProps> = ({
   const [isFetchingWeather, setIsFetchingWeather] = useState(false);
   const [weatherFetchSuccess, setWeatherFetchSuccess] = useState(false);
 
-  const [form, setForm] = useState<Partial<Visit>>({
+  const PEST_SEVERITY_OPTIONS = [
+    'بدون آلودگی (سالم)',
+    'بسیار کم (تک‌بوته / لکه‌ای)',
+    'کم (زیر آستانه زیان اقتصادی)',
+    'متوسط (در آستانه طغیان / نیاز به پایش)',
+    'زیاد (نیازمند مبارزه و محلول‌پاشی فوری)',
+    'بسیار شدید (طغیانی / بحرانی)'
+  ];
+
+  const PSYLLA_DENSITY_OPTIONS = [
+    'بدون پوره و تخم (صفر)',
+    'کم (۱ تا ۳ پوره در هر برگچه)',
+    'متوسط (۴ تا ۷ پوره در هر برگچه)',
+    'زیاد (۸ تا ۱۵ پوره به همراه عسلک)',
+    'بسیار شدید (بیش از ۱۵ پوره و شیره خشک)'
+  ];
+
+  const DISEASE_ABIOTIC_OPTIONS = [
+    'بدون علائم (سالم)',
+    'علائم اولیه / مشکوک (زیر ۵٪ درختان)',
+    'خفیف (۵ تا ۱۵٪ درختان)',
+    'متوسط (۱۵ تا ۳۰٪ باغ)',
+    'شدید (بیش از ۳۰٪ باغ / نیازمند تیمار فوری)',
+    'بحرانی / فراگیر'
+  ];
+
+  const defaultFormValues: Partial<Visit> = {
     landId: lands[0]?.id || '',
     visitDate: getTodayJalali().formatted,
     cropYearStatus: 'سال بار (ON)',
     growthStage: 'تشکیل میوه و ارزنو شدن',
-    psyllid: 'مشاهده پوره در حاشیه برگ‌ها',
-    psyllaDensity: 'متوسط (۶ پوره در برگ)',
-    miteStatus: 'بدون آلودگی',
-    stinkbugStatus: 'بدون آلودگی',
-    aphidStatus: 'بدون آلودگی',
-    leafminerStatus: 'بدون آلودگی',
+    // ۱. آفات حشره‌ای
+    psyllid: 'بدون آلودگی (سالم)',
+    psyllaDensity: 'بدون پوره و تخم (صفر)',
+    stinkbugStatus: 'بدون آلودگی (سالم)',
+    twigBorerStatus: 'بدون آلودگی (سالم)',
+    seedWaspStatus: 'بدون آلودگی (سالم)',
+    trunkBorerStatus: 'بدون آلودگی (سالم)',
+    leopardMothStatus: 'بدون آلودگی (سالم)',
+    carobMothStatus: 'بدون آلودگی (سالم)',
+    scaleInsectStatus: 'بدون آلودگی (سالم)',
+    gallAphidStatus: 'بدون آلودگی (سالم)',
     otherPests: '',
-    gummosis: 'بدون علائم',
-    dieback: 'بدون علائم',
-    alternariaStatus: 'بدون علائم',
-    botrytisStatus: 'بدون علائم',
-    rootRotStatus: 'بدون علائم',
-    cankerStatus: 'بدون علائم',
-    salinityInjury: 'بدون علائم',
-    sunburnStatus: 'بدون علائم',
-    windDamage: 'بدون آسیب',
+    // ۲. کنه‌ها
+    spiderMiteStatus: 'بدون آلودگی (سالم)',
+    otherFolivorousMitesStatus: 'بدون آلودگی (سالم)',
+    miteStatus: 'بدون آلودگی (سالم)',
+    // ۳. بیماری‌های قارچی
+    verticilliumStatus: 'بدون علائم (سالم)',
+    gummosis: 'بدون علائم (سالم)',
+    dieback: 'بدون علائم (سالم)',
+    alternariaStatus: 'بدون علائم (سالم)',
+    aspergillusStatus: 'بدون علائم (سالم)',
+    septoriaStatus: 'بدون علائم (سالم)',
+    armillariaStatus: 'بدون علائم (سالم)',
+    powderyMildewStatus: 'بدون علائم (سالم)',
+    // ۴. بیماری‌های باکتریایی
+    bacterialBlightStatus: 'بدون علائم (سالم)',
+    crownGallStatus: 'بدون علائم (سالم)',
+    // ۵. فیتوپلاسما و ویروس
+    witchesBroomStatus: 'بدون علائم (سالم)',
+    // ۶. نماتدها
+    rootKnotNematodeStatus: 'بدون علائم (سالم)',
+    // ۷. ناهنجاری‌های غیرزنده
+    salinityInjury: 'بدون علائم (سالم)',
+    springFrostStatus: 'بدون علائم (سالم)',
+    blankingAndNonSplittingStatus: 'بدون علائم (سالم)',
+    zincBoronDeficiencyStatus: 'بدون علائم (سالم)',
+    // وضعیت عمومی درخت
     treeVigor: 'مطلوب',
     fruitLoad: 'متوسط',
     earlySplitting: 'بدون مشکل',
@@ -90,7 +138,9 @@ export const VisitsTab: React.FC<VisitsTabProps> = ({
     nextVisitDate: '',
     expertRecommendation: '',
     isApproved: false
-  });
+  };
+
+  const [form, setForm] = useState<Partial<Visit>>(defaultFormValues);
 
   const handleAutoFetchWeather = async () => {
     const selLand = lands.find(l => l.id === form.landId);
@@ -274,36 +324,22 @@ export const VisitsTab: React.FC<VisitsTabProps> = ({
             </button>
           </div>
 
-          <button
-            onClick={() => {
-              setEditingVisit(null);
-              setForm({
-                landId: lands[0]?.id || '',
-                visitDate: getTodayJalali().formatted,
-                cropYearStatus: 'سال بار (ON)',
-                growthStage: 'تشکیل میوه و ارزنو شدن',
-                psyllid: 'مشاهده پوره در حاشیه برگ‌ها',
-                psyllaDensity: 'متوسط (۶ پوره در برگ)',
-                miteStatus: 'بدون آلودگی',
-                stinkbugStatus: 'بدون آلودگی',
-                aphidStatus: 'بدون آلودگی',
-                leafminerStatus: 'بدون آلودگی',
-                otherPests: '',
-                gummosis: 'بدون علائم',
-                dieback: 'بدون علائم',
-                salinityInjury: 'بدون علائم',
-                treeVigor: 'مطلوب',
-                fruitLoad: 'متوسط',
-                irrigationStatus: 'مناسب',
-                expertRecommendation: '',
-                isApproved: false
-              });
-              setShowModal(true);
-            }}
-            className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md transition"
-          >
-            <Plus className="w-4 h-4" /> ثبت بازدید میدانی
-          </button>
+          {user?.role !== 'farmer' && (
+            <button
+              onClick={() => {
+                setEditingVisit(null);
+                setForm({
+                  ...defaultFormValues,
+                  landId: lands[0]?.id || '',
+                  visitDate: getTodayJalali().formatted
+                });
+                setShowModal(true);
+              }}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md transition"
+            >
+              <Plus className="w-4 h-4" /> ثبت بازدید میدانی
+            </button>
+          )}
         </div>
       </div>
 
@@ -330,35 +366,47 @@ export const VisitsTab: React.FC<VisitsTabProps> = ({
                   </div>
 
                   <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setViewingVisit(visit)}
-                      className="p-1.5 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition"
-                      title="مشاهده کامل"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingVisit(visit);
-                        setForm(visit);
-                        setShowModal(true);
-                      }}
-                      className="p-1.5 bg-gray-50 text-gray-700 rounded-lg hover:bg-emerald-50 hover:text-emerald-700 transition"
-                      title="ویرایش"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (confirm('آیا از حذف این گزارش بازدید اطمینان دارید؟')) {
-                          setVisits(prev => prev.filter(v => v.id !== visit.id));
-                        }
-                      }}
-                      className="p-1.5 bg-gray-50 text-gray-600 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition"
-                      title="حذف"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {user?.role === 'farmer' ? (
+                      <button
+                        onClick={() => setViewingVisit(visit)}
+                        className="px-2.5 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition flex items-center gap-1 text-[11px] font-black"
+                        title="مشاهده جزئیات گزارش"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> مشاهده
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => setViewingVisit(visit)}
+                          className="p-1.5 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition"
+                          title="مشاهده کامل"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingVisit(visit);
+                            setForm(visit);
+                            setShowModal(true);
+                          }}
+                          className="p-1.5 bg-gray-50 text-gray-700 rounded-lg hover:bg-emerald-50 hover:text-emerald-700 transition"
+                          title="ویرایش"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm('آیا از حذف این گزارش بازدید اطمینان دارید؟')) {
+                              setVisits(prev => prev.filter(v => v.id !== visit.id));
+                            }
+                          }}
+                          className="p-1.5 bg-gray-50 text-gray-600 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition"
+                          title="حذف"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -437,6 +485,17 @@ export const VisitsTab: React.FC<VisitsTabProps> = ({
               </div>
 
               <div className="mt-4 pt-3 border-t border-gray-100 flex flex-wrap justify-between items-center gap-2">
+                {user?.role === 'farmer' && (
+                  <button
+                    type="button"
+                    onClick={() => setViewingVisit(visit)}
+                    className="text-xs font-black px-3.5 py-1.5 rounded-xl bg-emerald-700 text-white hover:bg-emerald-800 shadow-sm transition flex items-center gap-1.5"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    مشاهده کامل گزارش
+                  </button>
+                )}
+
                 {(user?.role === 'admin' || user?.role === 'operator' || user?.role === 'expert') && (
                   <button
                     onClick={() => toggleApproval(visit.id)}
@@ -757,78 +816,184 @@ export const VisitsTab: React.FC<VisitsTabProps> = ({
                 )}
               </div>
 
-              {/* بخش ۳: پایش آفات پسته */}
-              <div className="bg-gray-50/70 p-5 rounded-2xl border border-gray-200/80 space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-gray-200/60">
-                  <div className="p-1.5 bg-amber-100 text-amber-800 rounded-lg">
-                    <Bug className="w-4 h-4" />
+              {/* گروه ۱: آفات حشره‌ای */}
+              <div className="bg-amber-50/40 p-5 rounded-2xl border border-amber-200/80 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-amber-200/60">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-amber-100 text-amber-800 rounded-lg">
+                      <Bug className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-gray-900">
+                        گروه ۱: آفات حشره‌ای
+                      </h4>
+                      <p className="text-[10px] text-gray-500 font-bold">
+                        انتخاب میزان و شدت آلودگی هر یک از آفات حشره‌ای پسته
+                      </p>
+                    </div>
                   </div>
-                  <h4 className="text-xs font-black text-gray-900">
-                    پایش تخصصی آفات پسته
-                  </h4>
+                  <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg">
+                    ۹ شاخص تخصصی
+                  </span>
                 </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* ۱. پسیل معمولی پسته */}
                   <div>
-                    <label className="text-xs font-black text-gray-700 mb-1 block">پسیل پسته (شیره خشک)</label>
-                    <input
-                      type="text"
-                      placeholder="وضعیت مشاهده پوره و عسلک"
-                      className="w-full p-3 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={form.psyllid || ''}
+                    <label className="text-xs font-black text-gray-700 mb-1 block">پسیل معمولی پسته</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.psyllid || 'بدون آلودگی (سالم)'}
                       onChange={e => setForm({ ...form, psyllid: e.target.value })}
-                    />
+                    >
+                      {!PEST_SEVERITY_OPTIONS.includes(form.psyllid || '') && form.psyllid && (
+                        <option value={form.psyllid}>{form.psyllid}</option>
+                      )}
+                      {PEST_SEVERITY_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
                   </div>
 
+                  {/* تراکم پسیل در برگ */}
                   <div>
-                    <label className="text-xs font-black text-gray-700 mb-1 block">تراکم پسیل در برگ</label>
-                    <input
-                      type="text"
-                      placeholder="مثال: کم (۱-۲ پوره)، متوسط (۵-۸)، بالا"
-                      className="w-full p-3 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={form.psyllaDensity || ''}
+                    <label className="text-xs font-black text-gray-700 mb-1 block">تراکم پوره پسیل در برگ</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.psyllaDensity || 'بدون پوره و تخم (صفر)'}
                       onChange={e => setForm({ ...form, psyllaDensity: e.target.value })}
-                    />
+                    >
+                      {!PSYLLA_DENSITY_OPTIONS.includes(form.psyllaDensity || '') && form.psyllaDensity && (
+                        <option value={form.psyllaDensity}>{form.psyllaDensity}</option>
+                      )}
+                      {PSYLLA_DENSITY_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
                   </div>
 
+                  {/* ۲. سن‌های پسته (سن سبز و...) */}
                   <div>
-                    <label className="text-xs font-black text-gray-700 mb-1 block">سن‌های پسته (سبز / قرمز)</label>
-                    <input
-                      type="text"
-                      placeholder="بدون آلودگی / مشاهده سن"
-                      className="w-full p-3 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={form.stinkbugStatus || ''}
+                    <label className="text-xs font-black text-gray-700 mb-1 block">سن‌های پسته (سن سبز و...)</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.stinkbugStatus || 'بدون آلودگی (سالم)'}
                       onChange={e => setForm({ ...form, stinkbugStatus: e.target.value })}
-                    />
+                    >
+                      {!PEST_SEVERITY_OPTIONS.includes(form.stinkbugStatus || '') && form.stinkbugStatus && (
+                        <option value={form.stinkbugStatus}>{form.stinkbugStatus}</option>
+                      )}
+                      {PEST_SEVERITY_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
                   </div>
 
+                  {/* ۳. سرشاخه‌خوار پسته */}
                   <div>
-                    <label className="text-xs font-black text-gray-700 mb-1 block">کنه زنگ و کنه تارتن</label>
-                    <input
-                      type="text"
-                      placeholder="بدون آلودگی / وجود کنه"
-                      className="w-full p-3 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={form.miteStatus || ''}
-                      onChange={e => setForm({ ...form, miteStatus: e.target.value })}
-                    />
+                    <label className="text-xs font-black text-gray-700 mb-1 block">سرشاخه‌خوار پسته</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.twigBorerStatus || 'بدون آلودگی (سالم)'}
+                      onChange={e => setForm({ ...form, twigBorerStatus: e.target.value })}
+                    >
+                      {PEST_SEVERITY_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
                   </div>
 
+                  {/* ۴. زنبور مغزخوار پسته */}
                   <div>
-                    <label className="text-xs font-black text-gray-700 mb-1 block">پروانه چوبخوار / برگخوار</label>
-                    <input
-                      type="text"
-                      placeholder="بدون آلودگی / مشاهده خسارت"
-                      className="w-full p-3 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={form.leafminerStatus || ''}
-                      onChange={e => setForm({ ...form, leafminerStatus: e.target.value })}
-                    />
+                    <label className="text-xs font-black text-gray-700 mb-1 block">زنبور مغزخوار پسته</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.seedWaspStatus || 'بدون آلودگی (سالم)'}
+                      onChange={e => setForm({ ...form, seedWaspStatus: e.target.value })}
+                    >
+                      {PEST_SEVERITY_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
                   </div>
 
+                  {/* ۵. تنه‌خوار (سوسک چوب‌خوار) */}
                   <div>
-                    <label className="text-xs font-black text-gray-700 mb-1 block">سایر آفات (سوسک، زنبور و...)</label>
+                    <label className="text-xs font-black text-gray-700 mb-1 block">تنه‌خوار (سوسک چوب‌خوار)</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.trunkBorerStatus || 'بدون آلودگی (سالم)'}
+                      onChange={e => setForm({ ...form, trunkBorerStatus: e.target.value })}
+                    >
+                      {PEST_SEVERITY_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* ۶. کرم خراط */}
+                  <div>
+                    <label className="text-xs font-black text-gray-700 mb-1 block">کرم خراط</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.leopardMothStatus || 'بدون آلودگی (سالم)'}
+                      onChange={e => setForm({ ...form, leopardMothStatus: e.target.value })}
+                    >
+                      {PEST_SEVERITY_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* ۷. کرم گلوگاه / پروانه میوه */}
+                  <div>
+                    <label className="text-xs font-black text-gray-700 mb-1 block">کرم گلوگاه / پروانه میوه</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.carobMothStatus || 'بدون آلودگی (سالم)'}
+                      onChange={e => setForm({ ...form, carobMothStatus: e.target.value })}
+                    >
+                      {PEST_SEVERITY_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* ۸. شپشک‌های سپردار */}
+                  <div>
+                    <label className="text-xs font-black text-gray-700 mb-1 block">شپشک‌های سپردار</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.scaleInsectStatus || 'بدون آلودگی (سالم)'}
+                      onChange={e => setForm({ ...form, scaleInsectStatus: e.target.value })}
+                    >
+                      {PEST_SEVERITY_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* ۹. شته‌های گال‌ساز */}
+                  <div>
+                    <label className="text-xs font-black text-gray-700 mb-1 block">شته‌های گال‌ساز</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.gallAphidStatus || 'بدون آلودگی (سالم)'}
+                      onChange={e => setForm({ ...form, gallAphidStatus: e.target.value })}
+                    >
+                      {PEST_SEVERITY_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* توضیحات تکمیلی آفات */}
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-black text-gray-700 mb-1 block">یادداشت تکمیلی آفات حشره‌ای (اختیاری)</label>
                     <input
                       type="text"
-                      placeholder="توضیحات سایر آفات"
-                      className="w-full p-3 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      placeholder="توضیحات تکمیلی در خصوص کانون آلودگی یا سایر حشرات مشاهده‌شده..."
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
                       value={form.otherPests || ''}
                       onChange={e => setForm({ ...form, otherPests: e.target.value })}
                     />
@@ -836,54 +1001,391 @@ export const VisitsTab: React.FC<VisitsTabProps> = ({
                 </div>
               </div>
 
-              {/* بخش ۴: بیماری‌ها و عوارض فیزیولوژیک */}
-              <div className="bg-gray-50/70 p-5 rounded-2xl border border-gray-200/80 space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-gray-200/60">
-                  <div className="p-1.5 bg-rose-100 text-rose-800 rounded-lg">
-                    <ShieldAlert className="w-4 h-4" />
+              {/* گروه ۲: کنه‌ها */}
+              <div className="bg-orange-50/40 p-5 rounded-2xl border border-orange-200/80 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-orange-200/60">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-orange-100 text-orange-800 rounded-lg">
+                      <Bug className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-gray-900">
+                        گروه ۲: کنه‌ها
+                      </h4>
+                      <p className="text-[10px] text-gray-500 font-bold">
+                        ارزیابی آلودگی کنه‌های تارعنکبوتی و برگ‌خوار
+                      </p>
+                    </div>
                   </div>
-                  <h4 className="text-xs font-black text-gray-900">
-                    بیماری‌ها، شوری و وضعیت شادابی درخت
-                  </h4>
+                  <span className="text-[10px] font-black bg-orange-100 text-orange-800 px-2.5 py-1 rounded-lg">
+                    ۲ شاخص تخصصی
+                  </span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* ۱. کنه تارعنکبوتی */}
                   <div>
-                    <label className="text-xs font-black text-gray-700 mb-1 block">گموز (پوسیدگی طوقه)</label>
-                    <input
-                      type="text"
-                      placeholder="بدون علائم / وجود ترشح صمغ"
-                      className="w-full p-3 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={form.gummosis || ''}
+                    <label className="text-xs font-black text-gray-700 mb-1 block">کنه تارعنکبوتی</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.spiderMiteStatus || form.miteStatus || 'بدون آلودگی (سالم)'}
+                      onChange={e => setForm({ ...form, spiderMiteStatus: e.target.value, miteStatus: e.target.value })}
+                    >
+                      {!PEST_SEVERITY_OPTIONS.includes(form.spiderMiteStatus || form.miteStatus || '') && (form.spiderMiteStatus || form.miteStatus) && (
+                        <option value={form.spiderMiteStatus || form.miteStatus}>{form.spiderMiteStatus || form.miteStatus}</option>
+                      )}
+                      {PEST_SEVERITY_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* ۲. سایر کنه‌های برگ‌خوار */}
+                  <div>
+                    <label className="text-xs font-black text-gray-700 mb-1 block">سایر کنه‌های برگ‌خوار</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.otherFolivorousMitesStatus || 'بدون آلودگی (سالم)'}
+                      onChange={e => setForm({ ...form, otherFolivorousMitesStatus: e.target.value })}
+                    >
+                      {PEST_SEVERITY_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* گروه ۳: بیماری‌های قارچی */}
+              <div className="bg-rose-50/40 p-5 rounded-2xl border border-rose-200/80 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-rose-200/60">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-rose-100 text-rose-800 rounded-lg">
+                      <ShieldAlert className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-gray-900">
+                        گروه ۳: بیماری‌های قارچی
+                      </h4>
+                      <p className="text-[10px] text-gray-500 font-bold">
+                        پایش بیماری‌های قارچی ریشه، طوقه، سرشاخه، برگ و میوه پسته
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black bg-rose-100 text-rose-800 px-2.5 py-1 rounded-lg">
+                    ۸ شاخص تخصصی
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* ۱. پژمردگی ورتیسیلیومی */}
+                  <div>
+                    <label className="text-xs font-black text-gray-700 mb-1 block">پژمردگی ورتیسیلیومی</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.verticilliumStatus || 'بدون علائم (سالم)'}
+                      onChange={e => setForm({ ...form, verticilliumStatus: e.target.value })}
+                    >
+                      {DISEASE_ABIOTIC_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* ۲. پوسیدگی ریشه و طوقه (گموز) */}
+                  <div>
+                    <label className="text-xs font-black text-gray-700 mb-1 block">پوسیدگی ریشه و طوقه (گموز)</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.gummosis || 'بدون علائم (سالم)'}
                       onChange={e => setForm({ ...form, gummosis: e.target.value })}
-                    />
+                    >
+                      {!DISEASE_ABIOTIC_OPTIONS.includes(form.gummosis || '') && form.gummosis && (
+                        <option value={form.gummosis}>{form.gummosis}</option>
+                      )}
+                      {DISEASE_ABIOTIC_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
                   </div>
 
+                  {/* ۳. سرشاخه‌خشکیدگی / بوتریوسفاریا */}
                   <div>
-                    <label className="text-xs font-black text-gray-700 mb-1 block">سرخشکیدگی شاخه‌ها (Dieback)</label>
-                    <input
-                      type="text"
-                      placeholder="بدون علائم / خفیف / شدید"
-                      className="w-full p-3 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={form.dieback || ''}
+                    <label className="text-xs font-black text-gray-700 mb-1 block">سرشاخه‌خشکیدگی / بوتریوسفاریا</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.dieback || 'بدون علائم (سالم)'}
                       onChange={e => setForm({ ...form, dieback: e.target.value })}
-                    />
+                    >
+                      {!DISEASE_ABIOTIC_OPTIONS.includes(form.dieback || '') && form.dieback && (
+                        <option value={form.dieback}>{form.dieback}</option>
+                      )}
+                      {DISEASE_ABIOTIC_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
                   </div>
 
+                  {/* ۴. لکه برگی آلترناریایی (لکه سیاه) */}
                   <div>
-                    <label className="text-xs font-black text-gray-700 mb-1 block">خسارت شوری (سوختگی حاشیه برگ)</label>
-                    <input
-                      type="text"
-                      placeholder="بدون علائم / سوختگی نوک برگ"
-                      className="w-full p-3 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={form.salinityInjury || ''}
-                      onChange={e => setForm({ ...form, salinityInjury: e.target.value })}
-                    />
+                    <label className="text-xs font-black text-gray-700 mb-1 block">لکه برگی آلترناریایی (لکه سیاه)</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.alternariaStatus || 'بدون علائم (سالم)'}
+                      onChange={e => setForm({ ...form, alternariaStatus: e.target.value })}
+                    >
+                      {!DISEASE_ABIOTIC_OPTIONS.includes(form.alternariaStatus || '') && form.alternariaStatus && (
+                        <option value={form.alternariaStatus}>{form.alternariaStatus}</option>
+                      )}
+                      {DISEASE_ABIOTIC_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
                   </div>
 
+                  {/* ۵. آلودگی آسپرژیلوسی میوه (خطر آفلاتوکسین) */}
+                  <div>
+                    <label className="text-xs font-black text-gray-700 mb-1 block">آلودگی آسپرژیلوسی میوه (خطر آفلاتوکسین)</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.aspergillusStatus || 'بدون علائم (سالم)'}
+                      onChange={e => setForm({ ...form, aspergillusStatus: e.target.value })}
+                    >
+                      {DISEASE_ABIOTIC_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* ۶. لکه برگی سپتوریایی */}
+                  <div>
+                    <label className="text-xs font-black text-gray-700 mb-1 block">لکه برگی سپتوریایی</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.septoriaStatus || 'بدون علائم (سالم)'}
+                      onChange={e => setForm({ ...form, septoriaStatus: e.target.value })}
+                    >
+                      {DISEASE_ABIOTIC_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* ۷. پوسیدگی آرمیلاریایی ریشه */}
+                  <div>
+                    <label className="text-xs font-black text-gray-700 mb-1 block">پوسیدگی آرمیلاریایی ریشه</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.armillariaStatus || 'بدون علائم (سالم)'}
+                      onChange={e => setForm({ ...form, armillariaStatus: e.target.value })}
+                    >
+                      {DISEASE_ABIOTIC_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* ۸. سفیدک سطحی */}
+                  <div>
+                    <label className="text-xs font-black text-gray-700 mb-1 block">سفیدک سطحی</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.powderyMildewStatus || 'بدون علائم (سالم)'}
+                      onChange={e => setForm({ ...form, powderyMildewStatus: e.target.value })}
+                    >
+                      {DISEASE_ABIOTIC_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* گروه‌های ۴، ۵ و ۶ در یک ردیف ساختاریافته: باکتریایی، فیتوپلاسما/ویروس، نماتدها */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {/* گروه ۴: بیماری‌های باکتریایی */}
+                <div className="bg-purple-50/40 p-5 rounded-2xl border border-purple-200/80 space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-purple-200/60">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-purple-100 text-purple-800 rounded-lg">
+                        <FlaskConical className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-xs font-black text-gray-900">
+                        گروه ۴: بیماری‌های باکتریایی
+                      </h4>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-black text-gray-700 mb-1 block">سوختگی باکتریایی</label>
+                      <select
+                        className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                        value={form.bacterialBlightStatus || 'بدون علائم (سالم)'}
+                        onChange={e => setForm({ ...form, bacterialBlightStatus: e.target.value })}
+                      >
+                        {DISEASE_ABIOTIC_OPTIONS.map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-black text-gray-700 mb-1 block">سرطان طوقه (گال طوقه)</label>
+                      <select
+                        className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                        value={form.crownGallStatus || 'بدون علائم (سالم)'}
+                        onChange={e => setForm({ ...form, crownGallStatus: e.target.value })}
+                      >
+                        {DISEASE_ABIOTIC_OPTIONS.map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* گروه ۵: فیتوپلاسما و ویروس */}
+                <div className="bg-indigo-50/40 p-5 rounded-2xl border border-indigo-200/80 space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-indigo-200/60">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-indigo-100 text-indigo-800 rounded-lg">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-xs font-black text-gray-900">
+                        گروه ۵: فیتوپلاسما و ویروس
+                      </h4>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-black text-gray-700 mb-1 block">جاروک پسته (جارو جادویی / بوته‌ای شدن سرشاخه)</label>
+                      <select
+                        className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                        value={form.witchesBroomStatus || 'بدون علائم (سالم)'}
+                        onChange={e => setForm({ ...form, witchesBroomStatus: e.target.value })}
+                      >
+                        {DISEASE_ABIOTIC_OPTIONS.map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* گروه ۶: نماتدها */}
+                <div className="bg-stone-100/70 p-5 rounded-2xl border border-stone-200/80 space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-stone-200/60">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-stone-200 text-stone-800 rounded-lg">
+                        <Tag className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-xs font-black text-gray-900">
+                        گروه ۶: نماتدها
+                      </h4>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-black text-gray-700 mb-1 block">نماتد ریشه‌گره</label>
+                      <select
+                        className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                        value={form.rootKnotNematodeStatus || 'بدون علائم (سالم)'}
+                        onChange={e => setForm({ ...form, rootKnotNematodeStatus: e.target.value })}
+                      >
+                        {DISEASE_ABIOTIC_OPTIONS.map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* گروه ۷: ناهنجاری‌های غیرزنده و وضعیت عمومی درخت */}
+              <div className="bg-teal-50/40 p-5 rounded-2xl border border-teal-200/80 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-teal-200/60">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-teal-100 text-teal-800 rounded-lg">
+                      <AlertTriangle className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-gray-900">
+                        گروه ۷: ناهنجاری‌های غیرزنده و شاخص‌های تغذیه‌ای-محیطی
+                      </h4>
+                      <p className="text-[10px] text-gray-500 font-bold">
+                        تنش‌های محیطی، شوری، سرمازدگی، پوکی و کمبود عناصر
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black bg-teal-100 text-teal-800 px-2.5 py-1 rounded-lg">
+                    ۴ شاخص اصلی + وضعیت درخت
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* ۱. شوری خاک و آب */}
+                  <div>
+                    <label className="text-xs font-black text-gray-700 mb-1 block">شوری خاک و آب</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.salinityInjury || 'بدون علائم (سالم)'}
+                      onChange={e => setForm({ ...form, salinityInjury: e.target.value })}
+                    >
+                      {!DISEASE_ABIOTIC_OPTIONS.includes(form.salinityInjury || '') && form.salinityInjury && (
+                        <option value={form.salinityInjury}>{form.salinityInjury}</option>
+                      )}
+                      {DISEASE_ABIOTIC_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* ۲. سرمازدگی بهاره */}
+                  <div>
+                    <label className="text-xs font-black text-gray-700 mb-1 block">سرمازدگی بهاره</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.springFrostStatus || 'بدون علائم (سالم)'}
+                      onChange={e => setForm({ ...form, springFrostStatus: e.target.value })}
+                    >
+                      {DISEASE_ABIOTIC_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* ۳. پوکی و خندانی نشدن */}
+                  <div>
+                    <label className="text-xs font-black text-gray-700 mb-1 block">پوکی و خندانی نشدن</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.blankingAndNonSplittingStatus || 'بدون علائم (سالم)'}
+                      onChange={e => setForm({ ...form, blankingAndNonSplittingStatus: e.target.value })}
+                    >
+                      {DISEASE_ABIOTIC_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* ۴. کمبود روی (روزت) و بور */}
+                  <div>
+                    <label className="text-xs font-black text-gray-700 mb-1 block">کمبود روی (روزت) و بور</label>
+                    <select
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={form.zincBoronDeficiencyStatus || 'بدون علائم (سالم)'}
+                      onChange={e => setForm({ ...form, zincBoronDeficiencyStatus: e.target.value })}
+                    >
+                      {DISEASE_ABIOTIC_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* شادابی و رشد رویشی */}
                   <div>
                     <label className="text-xs font-black text-gray-700 mb-1 block">شادابی و رشد رویشی</label>
                     <select
-                      className="w-full p-3 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
                       value={form.treeVigor || 'مطلوب'}
                       onChange={e => setForm({ ...form, treeVigor: e.target.value })}
                     >
@@ -893,10 +1395,11 @@ export const VisitsTab: React.FC<VisitsTabProps> = ({
                     </select>
                   </div>
 
+                  {/* بار محصول و خوشه‌ها */}
                   <div>
                     <label className="text-xs font-black text-gray-700 mb-1 block">بار محصول و خوشه‌ها</label>
                     <select
-                      className="w-full p-3 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
                       value={form.fruitLoad || 'متوسط'}
                       onChange={e => setForm({ ...form, fruitLoad: e.target.value })}
                     >
@@ -907,12 +1410,13 @@ export const VisitsTab: React.FC<VisitsTabProps> = ({
                     </select>
                   </div>
 
-                  <div>
-                    <label className="text-xs font-black text-gray-700 mb-1 block">کمبودهای تغذیه‌ای مشهود</label>
+                  {/* سایر کمبودهای تغذیه‌ای */}
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-black text-gray-700 mb-1 block">یادداشت سایر کمبودهای تغذیه‌ای (اختیاری)</label>
                     <input
                       type="text"
-                      placeholder="مثال: زردی آهن، کمبود روی، کمبود پتاسیم"
-                      className="w-full p-3 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                      placeholder="مثال: زردی آهن، کمبود پتاسیم، کلسیم یا نیتروژن..."
+                      className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
                       value={form.nutrientDeficiency || ''}
                       onChange={e => setForm({ ...form, nutrientDeficiency: e.target.value })}
                     />
@@ -1052,8 +1556,8 @@ export const VisitsTab: React.FC<VisitsTabProps> = ({
       {/* Modal: View Visit Details */}
       {viewingVisit && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-6 md:p-8 my-8">
-            <div className="flex justify-between items-center pb-4 border-b border-gray-100 mb-6">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full p-6 md:p-8 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-4 border-b border-gray-100 mb-6 sticky top-0 bg-white z-10">
               <div>
                 <h3 className="text-lg font-black text-gray-800">
                   جزئیات کامل گزارش بازدید {getLandName(viewingVisit.landId)}
@@ -1124,13 +1628,66 @@ export const VisitsTab: React.FC<VisitsTabProps> = ({
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-200">
-                <div><span className="text-gray-400">باغدار:</span> <span className="font-bold text-gray-800">{getOwnerByLand(viewingVisit.landId)}</span></div>
-                <div><span className="text-gray-400">مرحله رشدی:</span> <span className="font-bold text-gray-800">{viewingVisit.growthStage || '---'}</span></div>
-                <div><span className="text-gray-400">پسیل پسته:</span> <span className="font-bold text-gray-800">{viewingVisit.psyllid || 'بدون آلودگی'}</span></div>
-                <div><span className="text-gray-400">تراکم پسیل:</span> <span className="font-bold text-gray-800">{viewingVisit.psyllaDensity || '---'}</span></div>
-                <div><span className="text-gray-400">شادابی:</span> <span className="font-bold text-gray-800">{viewingVisit.treeVigor}</span></div>
-                <div><span className="text-gray-400">بار محصول:</span> <span className="font-bold text-gray-800">{viewingVisit.fruitLoad}</span></div>
+              {/* اطلاعات پایه */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-200">
+                <div><span className="text-gray-400 block mb-0.5">باغدار:</span> <span className="font-bold text-gray-800">{getOwnerByLand(viewingVisit.landId)}</span></div>
+                <div><span className="text-gray-400 block mb-0.5">مرحله رشدی:</span> <span className="font-bold text-gray-800">{viewingVisit.growthStage || '---'}</span></div>
+                <div><span className="text-gray-400 block mb-0.5">شادابی درختان:</span> <span className="font-bold text-gray-800">{viewingVisit.treeVigor || '---'}</span></div>
+                <div><span className="text-gray-400 block mb-0.5">بار محصول:</span> <span className="font-bold text-gray-800">{viewingVisit.fruitLoad || '---'}</span></div>
+              </div>
+
+              {/* نمایش گروه‌بندی شده آفات و بیماری‌ها */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* گروه ۱: آفات حشره‌ای */}
+                <div className="bg-amber-50/40 p-3.5 rounded-2xl border border-amber-200/70 space-y-1.5">
+                  <h5 className="font-black text-amber-900 border-b border-amber-200/60 pb-1 mb-2">۱. آفات حشره‌ای</h5>
+                  <div className="flex justify-between"><span>پسیل معمولی پسته:</span><strong className="text-gray-900">{viewingVisit.psyllid || 'بدون آلودگی'}</strong></div>
+                  <div className="flex justify-between"><span>تراکم پوره پسیل:</span><strong className="text-gray-900">{viewingVisit.psyllaDensity || '---'}</strong></div>
+                  <div className="flex justify-between"><span>سن‌های پسته:</span><strong className="text-gray-900">{viewingVisit.stinkbugStatus || 'بدون آلودگی'}</strong></div>
+                  <div className="flex justify-between"><span>سرشاخه‌خوار پسته:</span><strong className="text-gray-900">{viewingVisit.twigBorerStatus || 'بدون آلودگی'}</strong></div>
+                  <div className="flex justify-between"><span>زنبور مغزخوار پسته:</span><strong className="text-gray-900">{viewingVisit.seedWaspStatus || 'بدون آلودگی'}</strong></div>
+                  <div className="flex justify-between"><span>تنه‌خوار (سوسک چوب‌خوار):</span><strong className="text-gray-900">{viewingVisit.trunkBorerStatus || 'بدون آلودگی'}</strong></div>
+                  <div className="flex justify-between"><span>کرم خراط:</span><strong className="text-gray-900">{viewingVisit.leopardMothStatus || 'بدون آلودگی'}</strong></div>
+                  <div className="flex justify-between"><span>کرم گلوگاه / پروانه میوه:</span><strong className="text-gray-900">{viewingVisit.carobMothStatus || 'بدون آلودگی'}</strong></div>
+                  <div className="flex justify-between"><span>شپشک‌های سپردار:</span><strong className="text-gray-900">{viewingVisit.scaleInsectStatus || 'بدون آلودگی'}</strong></div>
+                  <div className="flex justify-between"><span>شته‌های گال‌ساز:</span><strong className="text-gray-900">{viewingVisit.gallAphidStatus || 'بدون آلودگی'}</strong></div>
+                </div>
+
+                {/* گروه ۳: بیماری‌های قارچی */}
+                <div className="bg-rose-50/40 p-3.5 rounded-2xl border border-rose-200/70 space-y-1.5">
+                  <h5 className="font-black text-rose-900 border-b border-rose-200/60 pb-1 mb-2">۳. بیماری‌های قارچی</h5>
+                  <div className="flex justify-between"><span>پژمردگی ورتیسیلیومی:</span><strong className="text-gray-900">{viewingVisit.verticilliumStatus || 'بدون علائم'}</strong></div>
+                  <div className="flex justify-between"><span>پوسیدگی ریشه و طوقه (گموز):</span><strong className="text-gray-900">{viewingVisit.gummosis || 'بدون علائم'}</strong></div>
+                  <div className="flex justify-between"><span>سرشاخه‌خشکیدگی / بوتریوسفاریا:</span><strong className="text-gray-900">{viewingVisit.dieback || 'بدون علائم'}</strong></div>
+                  <div className="flex justify-between"><span>لکه برگی آلترناریایی:</span><strong className="text-gray-900">{viewingVisit.alternariaStatus || 'بدون علائم'}</strong></div>
+                  <div className="flex justify-between"><span>آلودگی آسپرژیلوسی (آفلاتوکسین):</span><strong className="text-gray-900">{viewingVisit.aspergillusStatus || 'بدون علائم'}</strong></div>
+                  <div className="flex justify-between"><span>لکه برگی سپتوریایی:</span><strong className="text-gray-900">{viewingVisit.septoriaStatus || 'بدون علائم'}</strong></div>
+                  <div className="flex justify-between"><span>پوسیدگی آرمیلاریایی ریشه:</span><strong className="text-gray-900">{viewingVisit.armillariaStatus || 'بدون علائم'}</strong></div>
+                  <div className="flex justify-between"><span>سفیدک سطحی:</span><strong className="text-gray-900">{viewingVisit.powderyMildewStatus || 'بدون علائم'}</strong></div>
+                </div>
+
+                {/* گروه ۲، ۴، ۵، ۶ */}
+                <div className="bg-purple-50/40 p-3.5 rounded-2xl border border-purple-200/70 space-y-1.5">
+                  <h5 className="font-black text-purple-900 border-b border-purple-200/60 pb-1 mb-2">۲، ۴، ۵ و ۶. کنه‌ها، باکتریایی، ویروس و نماتد</h5>
+                  <div className="flex justify-between"><span>کنه تارعنکبوتی:</span><strong className="text-gray-900">{viewingVisit.spiderMiteStatus || viewingVisit.miteStatus || 'بدون آلودگی'}</strong></div>
+                  <div className="flex justify-between"><span>سایر کنه‌های برگ‌خوار:</span><strong className="text-gray-900">{viewingVisit.otherFolivorousMitesStatus || 'بدون آلودگی'}</strong></div>
+                  <div className="flex justify-between"><span>سوختگی باکتریایی:</span><strong className="text-gray-900">{viewingVisit.bacterialBlightStatus || 'بدون علائم'}</strong></div>
+                  <div className="flex justify-between"><span>سرطان طوقه (گال طوقه):</span><strong className="text-gray-900">{viewingVisit.crownGallStatus || 'بدون علائم'}</strong></div>
+                  <div className="flex justify-between"><span>جاروک پسته (فیتوپلاسما):</span><strong className="text-gray-900">{viewingVisit.witchesBroomStatus || 'بدون علائم'}</strong></div>
+                  <div className="flex justify-between"><span>نماتد ریشه‌گره:</span><strong className="text-gray-900">{viewingVisit.rootKnotNematodeStatus || 'بدون علائم'}</strong></div>
+                </div>
+
+                {/* گروه ۷: ناهنجاری‌های غیرزنده */}
+                <div className="bg-teal-50/40 p-3.5 rounded-2xl border border-teal-200/70 space-y-1.5">
+                  <h5 className="font-black text-teal-900 border-b border-teal-200/60 pb-1 mb-2">۷. ناهنجاری‌های غیرزنده</h5>
+                  <div className="flex justify-between"><span>شوری خاک و آب:</span><strong className="text-gray-900">{viewingVisit.salinityInjury || 'بدون علائم'}</strong></div>
+                  <div className="flex justify-between"><span>سرمازدگی بهاره:</span><strong className="text-gray-900">{viewingVisit.springFrostStatus || 'بدون علائم'}</strong></div>
+                  <div className="flex justify-between"><span>پوکی و خندانی نشدن:</span><strong className="text-gray-900">{viewingVisit.blankingAndNonSplittingStatus || 'بدون علائم'}</strong></div>
+                  <div className="flex justify-between"><span>کمبود روی (روزت) و بور:</span><strong className="text-gray-900">{viewingVisit.zincBoronDeficiencyStatus || 'بدون علائم'}</strong></div>
+                  {viewingVisit.nutrientDeficiency && (
+                    <div className="flex justify-between"><span>سایر کمبودها:</span><strong className="text-gray-900">{viewingVisit.nutrientDeficiency}</strong></div>
+                  )}
+                </div>
               </div>
 
               {viewingVisit.expertRecommendation && (

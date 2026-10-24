@@ -88,9 +88,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const handleTabClick = (tab: ActiveTab, araziSub?: 'lands' | 'owners' | 'water') => {
     setActiveTab(tab);
     if (araziSub) {
-      setAraziSubTab(araziSub);
+      setAraziSubTab(currentUser?.role === 'farmer' && araziSub === 'owners' ? 'lands' : araziSub);
     } else if (tab === 'owners') {
-      setAraziSubTab('owners');
+      setAraziSubTab(currentUser?.role === 'farmer' ? 'lands' : 'owners');
     } else if (tab === 'arazi') {
       setAraziSubTab('lands');
     }
@@ -200,44 +200,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             )}
 
-            {/* Owners */}
+            {/* Owners / Lands / Water Sources */}
             <button
-              onClick={() => handleTabClick('owners', 'owners')}
-              title="مالکان و باغداران"
+              onClick={() => handleTabClick('arazi', 'owners')}
+              title="مالکان / باغات / منابع آب"
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-black transition text-right group ${
-                activeTab === 'owners' || (activeTab === 'arazi' && araziSubTab === 'owners')
-                  ? 'bg-blue-600 text-white shadow-md'
+                activeTab === 'owners' || activeTab === 'arazi'
+                  ? 'bg-emerald-500 text-emerald-950 shadow-md font-black'
                   : 'text-emerald-100 hover:bg-emerald-800/60 hover:text-white'
               }`}
             >
               <div className="flex items-center gap-3 truncate">
-                <Users className={`w-4 h-4 shrink-0 ${activeTab === 'owners' ? 'text-white' : 'text-blue-300 group-hover:scale-110'} transition`} />
-                {(!isCollapsed || isOpenMobile) && <span className="truncate">مالکان و باغداران</span>}
+                <Users className={`w-4 h-4 shrink-0 ${(activeTab === 'owners' || activeTab === 'arazi') ? 'text-emerald-950' : 'text-emerald-300 group-hover:scale-110'} transition`} />
+                {(!isCollapsed || isOpenMobile) && <span className="truncate">مالکان / باغات / منابع آب</span>}
               </div>
               {(!isCollapsed || isOpenMobile) && (
-                <span className="text-[10px] bg-blue-500/30 border border-blue-400/40 text-blue-100 px-2 py-0.5 rounded-full font-mono font-bold">
-                  {ownersCount}
-                </span>
-              )}
-            </button>
-
-            {/* Lands & Water */}
-            <button
-              onClick={() => handleTabClick('arazi', 'lands')}
-              title="باغات و منابع آب"
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-black transition text-right group ${
-                activeTab === 'arazi' && araziSubTab !== 'owners'
-                  ? 'bg-emerald-500 text-emerald-950 shadow-md'
-                  : 'text-emerald-100 hover:bg-emerald-800/60 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-3 truncate">
-                <Layers className={`w-4 h-4 shrink-0 ${activeTab === 'arazi' && araziSubTab !== 'owners' ? 'text-emerald-950' : 'text-emerald-300 group-hover:scale-110'} transition`} />
-                {(!isCollapsed || isOpenMobile) && <span className="truncate">باغات و منابع آب</span>}
-              </div>
-              {(!isCollapsed || isOpenMobile) && (
-                <span className="text-[10px] bg-emerald-900/80 text-emerald-200 px-2 py-0.5 rounded-full font-mono font-bold">
-                  {landsCount}
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                  (activeTab === 'owners' || activeTab === 'arazi')
+                    ? 'bg-emerald-900/20 text-emerald-950'
+                    : 'bg-emerald-900/80 text-emerald-200'
+                }`}>
+                  {ownersCount} / {landsCount}
                 </span>
               )}
             </button>
@@ -245,7 +228,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Visits & Scouting */}
             <button
               onClick={() => handleTabClick('visits')}
-              title="بازدید و پایش پسیل"
+              title="بازدید و پایش"
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-black transition text-right group ${
                 activeTab === 'visits'
                   ? 'bg-emerald-500 text-emerald-950 shadow-md'
@@ -254,7 +237,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="flex items-center gap-3 truncate">
                 <ClipboardCheck className={`w-4 h-4 shrink-0 ${activeTab === 'visits' ? 'text-emerald-950' : 'text-emerald-300 group-hover:scale-110'} transition`} />
-                {(!isCollapsed || isOpenMobile) && <span className="truncate">بازدید و پایش پسیل</span>}
+                {(!isCollapsed || isOpenMobile) && <span className="truncate">بازدید و پایش</span>}
               </div>
               {criticalVisitsCount > 0 && (!isCollapsed || isOpenMobile) && (
                 <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-full font-mono animate-pulse">
@@ -336,92 +319,94 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           </div>
 
-          {/* User Request #2: Submenu for "مدیریت سامانه" containing Base Tables & Vocabularies + User Management */}
-          <div className="space-y-1 pt-2 border-t border-emerald-800/60">
-            {/* Submenu Trigger */}
-            <button
-              onClick={() => setIsSystemManagementOpen(!isSystemManagementOpen)}
-              title="مدیریت سامانه"
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-black transition text-right group ${
-                isSystemTabActive
-                  ? 'bg-emerald-800 text-emerald-200 border border-emerald-600/50'
-                  : 'text-emerald-100 hover:bg-emerald-800/40 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-3 truncate">
-                <Sliders className={`w-4 h-4 shrink-0 ${isSystemTabActive ? 'text-emerald-300' : 'text-emerald-400 group-hover:scale-110'} transition`} />
-                {(!isCollapsed || isOpenMobile) && <span className="truncate">مدیریت سامانه</span>}
-              </div>
-              {(!isCollapsed || isOpenMobile) && (
-                <ChevronDown 
-                  className={`w-4 h-4 text-emerald-400 transition-transform duration-200 ${
-                    isSystemManagementOpen ? 'rotate-180' : ''
-                  }`} 
-                />
-              )}
-            </button>
+          {/* Submenu for "مدیریت سامانه" containing Base Tables & Vocabularies + User Management (Hidden for Farmer role) */}
+          {currentUser?.role !== 'farmer' && (
+            <div className="space-y-1 pt-2 border-t border-emerald-800/60">
+              {/* Submenu Trigger */}
+              <button
+                onClick={() => setIsSystemManagementOpen(!isSystemManagementOpen)}
+                title="مدیریت سامانه"
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-black transition text-right group ${
+                  isSystemTabActive
+                    ? 'bg-emerald-800 text-emerald-200 border border-emerald-600/50'
+                    : 'text-emerald-100 hover:bg-emerald-800/40 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-3 truncate">
+                  <Sliders className={`w-4 h-4 shrink-0 ${isSystemTabActive ? 'text-emerald-300' : 'text-emerald-400 group-hover:scale-110'} transition`} />
+                  {(!isCollapsed || isOpenMobile) && <span className="truncate">مدیریت سامانه</span>}
+                </div>
+                {(!isCollapsed || isOpenMobile) && (
+                  <ChevronDown 
+                    className={`w-4 h-4 text-emerald-400 transition-transform duration-200 ${
+                      isSystemManagementOpen ? 'rotate-180' : ''
+                    }`} 
+                  />
+                )}
+              </button>
 
-            {/* Submenu Items List */}
-            {isSystemManagementOpen && (
-              <div className={`space-y-1 pt-1 ${(!isCollapsed || isOpenMobile) ? 'pr-4 border-r-2 border-emerald-700/60 mr-3' : ''}`}>
-                {/* 1. جداول پایه و واژگان */}
-                <button
-                  onClick={() => handleTabClick('lookups')}
-                  title="جداول پایه و واژگان"
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-black transition text-right group ${
-                    activeTab === 'lookups'
-                      ? 'bg-emerald-400 text-emerald-950 shadow-sm font-black'
-                      : 'text-emerald-200 hover:bg-emerald-800/60 hover:text-white'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 truncate">
-                    <Database className={`w-3.5 h-3.5 shrink-0 ${activeTab === 'lookups' ? 'text-emerald-950' : 'text-emerald-400'}`} />
-                    {(!isCollapsed || isOpenMobile) && <span className="truncate">جداول پایه و واژگان</span>}
-                  </div>
-                  {(!isCollapsed || isOpenMobile) && (
-                    <span className="text-[10px] bg-emerald-900 text-emerald-200 px-1.5 py-0.2 rounded font-mono font-bold">
-                      {lookupsCount}
-                    </span>
-                  )}
-                </button>
-
-                {/* 2. مدیریت کاربران سامانه (برای ادمین و اپراتور) */}
-                {(currentUser?.role === 'admin' || currentUser?.role === 'operator') && (
+              {/* Submenu Items List */}
+              {isSystemManagementOpen && (
+                <div className={`space-y-1 pt-1 ${(!isCollapsed || isOpenMobile) ? 'pr-4 border-r-2 border-emerald-700/60 mr-3' : ''}`}>
+                  {/* 1. جداول پایه و واژگان */}
                   <button
-                    onClick={() => handleTabClick('users')}
-                    title="مدیریت کاربران سامانه"
+                    onClick={() => handleTabClick('lookups')}
+                    title="جداول پایه و واژگان"
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-black transition text-right group ${
-                      activeTab === 'users'
+                      activeTab === 'lookups'
                         ? 'bg-emerald-400 text-emerald-950 shadow-sm font-black'
                         : 'text-emerald-200 hover:bg-emerald-800/60 hover:text-white'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 truncate">
-                      <UserCheck className={`w-3.5 h-3.5 shrink-0 ${activeTab === 'users' ? 'text-emerald-950' : 'text-emerald-400'}`} />
-                      {(!isCollapsed || isOpenMobile) && <span className="truncate">مدیریت کاربران</span>}
+                      <Database className={`w-3.5 h-3.5 shrink-0 ${activeTab === 'lookups' ? 'text-emerald-950' : 'text-emerald-400'}`} />
+                      {(!isCollapsed || isOpenMobile) && <span className="truncate">جداول پایه و واژگان</span>}
                     </div>
+                    {(!isCollapsed || isOpenMobile) && (
+                      <span className="text-[10px] bg-emerald-900 text-emerald-200 px-1.5 py-0.2 rounded font-mono font-bold">
+                        {lookupsCount}
+                      </span>
+                    )}
                   </button>
-                )}
 
-                {/* 3. دیتابیس cPanel و وب‌سرویس موبایل */}
-                {onOpenCpanelModal && (
-                  <button
-                    onClick={() => {
-                      onOpenCpanelModal();
-                      setIsOpenMobile(false);
-                    }}
-                    title="پایگاه داده cPanel، سینک آفلاین و وب‌سرویس موبایل"
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-teal-200 hover:bg-teal-900/60 hover:text-white transition text-right group"
-                  >
-                    <div className="flex items-center gap-2.5 truncate">
-                      <Database className="w-3.5 h-3.5 shrink-0 text-teal-300" />
-                      {(!isCollapsed || isOpenMobile) && <span className="truncate">دیتابیس cPanel و API موبایل</span>}
-                    </div>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+                  {/* 2. مدیریت کاربران سامانه (برای ادمین و اپراتور) */}
+                  {(currentUser?.role === 'admin' || currentUser?.role === 'operator') && (
+                    <button
+                      onClick={() => handleTabClick('users')}
+                      title="مدیریت کاربران سامانه"
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-black transition text-right group ${
+                        activeTab === 'users'
+                          ? 'bg-emerald-400 text-emerald-950 shadow-sm font-black'
+                          : 'text-emerald-200 hover:bg-emerald-800/60 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 truncate">
+                        <UserCheck className={`w-3.5 h-3.5 shrink-0 ${activeTab === 'users' ? 'text-emerald-950' : 'text-emerald-400'}`} />
+                        {(!isCollapsed || isOpenMobile) && <span className="truncate">مدیریت کاربران</span>}
+                      </div>
+                    </button>
+                  )}
+
+                  {/* 3. دیتابیس cPanel و وب‌سرویس موبایل */}
+                  {onOpenCpanelModal && (
+                    <button
+                      onClick={() => {
+                        onOpenCpanelModal();
+                        setIsOpenMobile(false);
+                      }}
+                      title="پایگاه داده cPanel، سینک آفلاین و وب‌سرویس موبایل"
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-teal-200 hover:bg-teal-900/60 hover:text-white transition text-right group"
+                    >
+                      <div className="flex items-center gap-2.5 truncate">
+                        <Database className="w-3.5 h-3.5 shrink-0 text-teal-300" />
+                        {(!isCollapsed || isOpenMobile) && <span className="truncate">دیتابیس cPanel و API موبایل</span>}
+                      </div>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
         </nav>
 
