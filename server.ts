@@ -14,9 +14,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '50mb' }));
 
 // --- Persistent Local Database Store for Pistachio Management System ---
@@ -675,10 +675,20 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(__dirname, 'dist')));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-    });
+    const distPath = path.join(__dirname, 'dist');
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/api')) {
+          return next();
+        }
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    } else {
+      app.get('/', (req, res) => {
+        res.send('سامانه فعال است. جهت بارگذاری رابط کاربری وب، لطفاً دستور npm run build را در پوشه repositories/agrimanage اجرا نمایید.');
+      });
+    }
   }
 
   app.listen(PORT, '0.0.0.0', () => {

@@ -43,6 +43,8 @@ export const CpanelDbModal: React.FC<CpanelDbModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [copiedCpanelYml, setCopiedCpanelYml] = useState(false);
   const [copiedActionYml, setCopiedActionYml] = useState(false);
+  const [copiedHtaccess, setCopiedHtaccess] = useState(false);
+  const [copiedNodeConfig, setCopiedNodeConfig] = useState(false);
   const [loadingSql, setLoadingSql] = useState(false);
 
   // MySQL Test State
@@ -539,92 +541,148 @@ export const CpanelDbModal: React.FC<CpanelDbModalProps> = ({
           {activeTab === 'github_deploy' && (
             <div className="space-y-6">
               
-              {/* Introduction Banner */}
+              {/* Introduction Banner & Multi-site Notice */}
               <div className="bg-gradient-to-l from-slate-900 to-indigo-950 text-white p-5 rounded-2xl shadow-sm border border-slate-700/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
                     <span className="p-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg">
                       <GitBranch className="w-4 h-4" />
                     </span>
-                    <h3 className="text-sm font-black text-white">اتصال مستقیم ریپازیتوری GitHub به cPanel</h3>
+                    <h3 className="text-sm font-black text-white">تنظیمات اختصاصی دامنه avinia.ir در هاست چندسایتی cPanel</h3>
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
-                    شما می‌توانید کد این پروژه را در GitHub قرار داده و مستقیماً از طریق کنترل‌پنل cPanel هاست کلون و مستقر نمایید. در زیر تمام مراحل قدم‌به‌قدم برای اتصال امن و استقرار خودکار آماده شده است.
+                    با توجه به میزبانی سایر وب‌سایت‌ها روی این هاست (مانند سایت اصلی روی <code className="text-emerald-300 font-mono">public_html</code>)، تمام تنظیمات به صورت کاملاً تفکیک‌شده و ایزوله برای دامنه <strong className="text-white">avinia.ir</strong> و پوشه مخزن <strong className="text-emerald-300 font-mono">repositories/agrimanage</strong> آماده شده است تا کمترین تداخلی با سایر سایت‌های هاست شما به وجود نیاید.
                   </p>
                 </div>
-                <div className="flex items-center gap-2 text-xs bg-slate-800/80 px-3 py-2 rounded-xl border border-slate-700 font-mono text-emerald-400 whitespace-nowrap">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span>SSH Key + Git™ Control</span>
+                <div className="flex flex-col gap-1.5 text-xs bg-slate-800/90 px-3.5 py-2.5 rounded-xl border border-slate-700 font-mono text-emerald-300 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-emerald-400" />
+                    <span>avinia.ir</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-slate-300">
+                    <HardDrive className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>repositories/agrimanage</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Step 1 to 4: cPanel Git™ Version Control */}
+              {/* Step 1: Addon Domain in cPanel */}
+              <div className="border border-emerald-200 bg-emerald-50/50 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-emerald-700 text-white text-xs px-2.5 py-0.5 rounded-full font-bold">گام ۰</span>
+                    <h4 className="text-xs font-black text-emerald-950">ایجاد دامنه افزوده (Addon Domain) در cPanel بدون تداخل با سایت‌های دیگر</h4>
+                  </div>
+                  <span className="text-[11px] text-emerald-800 font-bold bg-white px-2 py-0.5 rounded-md border border-emerald-200">مهم برای عدم بازنویسی سایت‌های دیگر</span>
+                </div>
+                <p className="text-xs text-emerald-900 leading-relaxed">
+                  در cPanel به بخش <strong>Domains</strong> (یا <strong>Addon Domains</strong>) بروید و دامنه <code className="bg-white px-1.5 py-0.5 rounded font-mono text-emerald-800 font-bold">avinia.ir</code> را اضافه کنید.
+                  دقت کنید که گزینه <strong>Document Root</strong> حتماً مسیر اختصاصی مانند <code className="bg-white px-1.5 py-0.5 rounded font-mono text-emerald-800 font-bold">public_html/avinia.ir</code> یا <code className="bg-white px-1.5 py-0.5 rounded font-mono text-emerald-800 font-bold">avinia.ir</code> باشد و به هیچ وجه ریشه <code className="bg-red-100 text-red-800 px-1.5 py-0.5 rounded font-mono">public_html/</code> انتخاب نشود تا سایت اصلی شما دست‌نخورده باقی بماند.
+                </p>
+              </div>
+
+              {/* Step 2: Setup Node.js App in cPanel */}
+              <div className="border border-blue-200 bg-blue-50/40 rounded-2xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-blue-700 text-white text-xs px-2 py-0.5 rounded-full font-bold">بخش بک‌اند</span>
+                    <h4 className="text-xs font-black text-blue-950">تنظیم سرویس اجرای بک‌اند در cPanel (Setup Node.js App)</h4>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const cfg = `Node.js Version: 20.x (or 18.x)\nApplication Mode: Production\nApplication Root: repositories/agrimanage\nApplication URL: avinia.ir\nApplication Startup File: dist/server.cjs\nEnvironment Variables:\nPORT=3000\nNODE_ENV=production\nVITE_API_BASE_URL=https://avinia.ir/api\n`;
+                      navigator.clipboard.writeText(cfg);
+                      setCopiedNodeConfig(true);
+                      setTimeout(() => setCopiedNodeConfig(false), 2500);
+                    }}
+                    className="px-2.5 py-1 bg-white hover:bg-blue-100 text-blue-800 border border-blue-300 rounded-lg font-bold text-[11px] flex items-center gap-1 transition shadow-sm"
+                  >
+                    {copiedNodeConfig ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedNodeConfig ? 'کپی شد!' : 'کپی مشخصات Setup Node.js App'}
+                  </button>
+                </div>
+                <p className="text-xs text-blue-900 leading-relaxed font-medium">
+                  در cPanel وارد منوی <strong>Setup Node.js App</strong> شوید و روی <strong>Create Application</strong> کلیک کنید و مقادیر زیر را درج نمایید:
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                  <div className="bg-white p-2.5 rounded-xl border border-blue-200">
+                    <span className="text-gray-500 block text-[11px]">نسخه نودجی‌اس (Node.js version):</span>
+                    <span className="font-bold font-mono text-blue-900">20.x یا 18.x (LTS)</span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-xl border border-blue-200">
+                    <span className="text-gray-500 block text-[11px]">حالت برنامه (Application mode):</span>
+                    <span className="font-bold text-blue-900">Production</span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-xl border border-blue-200">
+                    <span className="text-gray-500 block text-[11px]">پوشه ریشه برنامه (Application root):</span>
+                    <span className="font-bold font-mono text-emerald-700 dir-ltr text-right block">repositories/agrimanage</span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-xl border border-blue-200">
+                    <span className="text-gray-500 block text-[11px]">آدرس دامنه برنامه (Application URL):</span>
+                    <span className="font-bold font-mono text-blue-900 dir-ltr text-right block">avinia.ir</span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-xl border border-blue-200 md:col-span-2">
+                    <span className="text-gray-500 block text-[11px]">فایل راه‌انداز اولیه (Application startup file):</span>
+                    <span className="font-bold font-mono text-blue-900">dist/server.cjs</span>
+                    <span className="text-[11px] text-gray-500 mr-2">(تولید شده توسط اسکریپت بیلد esbuild سرور Express)</span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-blue-800">پس از ایجاد، دکمه <strong>Run NPM Install</strong> را در همان صفحه بزنید تا کتابخانه‌ها نصب شوند و سپس روی <strong>Start / Restart</strong> کلیک کنید.</p>
+              </div>
+
+              {/* Step 3: cPanel Git™ Version Control */}
               <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm">
                 <div className="bg-gray-50/80 px-5 py-3.5 border-b border-gray-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="bg-emerald-700 text-white text-xs px-2 py-0.5 rounded-full font-bold">روش ۱</span>
-                    <h4 className="text-xs font-black text-gray-900">اتصال با ابزار رسمی cPanel Git™ Version Control (گام به گام)</h4>
+                    <h4 className="text-xs font-black text-gray-900">کلون در repositories/agrimanage با cPanel Git™ Version Control</h4>
                   </div>
-                  <span className="text-[11px] text-gray-500 font-medium">ساده‌ترین روش بدون نیاز به نرم‌افزار اضافی</span>
+                  <span className="text-[11px] text-gray-500 font-medium">اتصال مستقیم از GitHub</span>
                 </div>
 
                 <div className="p-5 space-y-4 text-xs">
-                  {/* Step 1 */}
+                  {/* Step 3.1 */}
                   <div className="flex gap-3">
                     <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-black flex items-center justify-center shrink-0 text-xs">
                       ۱
                     </div>
                     <div className="space-y-1 flex-1">
-                      <div className="font-bold text-gray-900">دریافت یا ساخت کلید SSH در cPanel:</div>
+                      <div className="font-bold text-gray-900">دریافت کلید SSH در cPanel و ثبت به عنوان Deploy Key در GitHub:</div>
                       <p className="text-gray-600 leading-relaxed font-medium">
-                        در صفحه اصلی cPanel وارد بخش <strong>SSH Access</strong> شوید (یا مستقیماً در <strong>Git™ Version Control</strong> روی لینک SSH کلیک کنید). روی <strong>Manage SSH Keys</strong> و سپس <strong>Generate a New Key</strong> کلیک کرده، نام کلید را بگذارید و روی Generate بزنید. سپس کلید عمومی (Public Key) را کپی (View/Copy) کنید و دکمه <strong>Authorize</strong> را بزنید.
+                        در منوی <strong>SSH Access</strong> در cPanel روی <strong>Manage SSH Keys</strong> و سپس <strong>Generate a New Key</strong> کلیک کرده، پس از ساخت کلید عمومی (Public Key) را کپی و روی <strong>Authorize</strong> بزنید. در مخزن GitHub به <strong>Settings &larr; Deploy Keys</strong> بروید و کلید را اضافه کنید.
                       </p>
                     </div>
                   </div>
 
-                  {/* Step 2 */}
+                  {/* Step 3.2 */}
                   <div className="flex gap-3">
                     <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-black flex items-center justify-center shrink-0 text-xs">
                       ۲
                     </div>
                     <div className="space-y-1 flex-1">
-                      <div className="font-bold text-gray-900">ثبت کلید در ریپازیتوری GitHub (Deploy Key):</div>
+                      <div className="font-bold text-gray-900">ایجاد ریپازیتوری در cPanel (در پوشه repositories/agrimanage):</div>
                       <p className="text-gray-600 leading-relaxed font-medium">
-                        در صفحه ریپازیتوری خود در GitHub به تب <strong>Settings</strong> &larr; منوی سمت چپ <strong>Deploy Keys</strong> بروید. دکمه <strong>Add deploy key</strong> را بزنید. یک عنوان (مثلاً <code className="bg-gray-100 px-1 py-0.5 rounded">cPanel-Server</code>) بدهید و متن کلید عمومی کپی‌شده از cPanel را پیست کنید و ذخیره نمایید.
+                        در منوی <strong>Git™ Version Control</strong> در cPanel دکمه <strong>Create</strong> را بزنید:
                       </p>
+                      <ul className="list-disc list-inside space-y-1 pr-2 text-gray-700 bg-gray-50 p-3 rounded-xl border border-gray-200/80">
+                        <li><strong>Clone URL:</strong> آدرس SSH مخزن گیت‌هاب (مثلاً <code className="text-emerald-700 font-mono dir-ltr">git@github.com:YOUR_USER/agrimanage.git</code>)</li>
+                        <li><strong>Repository Path:</strong> <code className="text-gray-900 font-bold font-mono dir-ltr">repositories/agrimanage</code></li>
+                        <li><strong>Repository Name:</strong> <code className="text-gray-900 font-bold font-mono">agrimanage</code></li>
+                      </ul>
                     </div>
                   </div>
 
-                  {/* Step 3 */}
+                  {/* Step 3.3: .cpanel.yml */}
                   <div className="flex gap-3">
                     <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-black flex items-center justify-center shrink-0 text-xs">
                       ۳
                     </div>
-                    <div className="space-y-1 flex-1">
-                      <div className="font-bold text-gray-900">کلون کردن ریپازیتوری در cPanel:</div>
-                      <p className="text-gray-600 leading-relaxed font-medium">
-                        در cPanel به منوی <strong>Git™ Version Control</strong> بروید و روی دکمه <strong>Create</strong> کلیک کنید:
-                      </p>
-                      <ul className="list-disc list-inside space-y-1 pr-2 text-gray-700 bg-gray-50 p-3 rounded-xl border border-gray-200/80">
-                        <li><strong>Clone URL:</strong> آدرس SSH مخزن گیت‌هاب (مثلاً <code className="text-emerald-700 font-mono dir-ltr">git@github.com:username/agrimanage.git</code>)</li>
-                        <li><strong>Repository Path:</strong> مسیر ذخیره روی هاست (مثلاً <code className="text-gray-800 font-mono dir-ltr">repositories/agrimanage</code>)</li>
-                        <li><strong>Repository Name:</strong> نام مخزن (مثلاً <code className="text-gray-800 font-mono">agrimanage</code>)</li>
-                      </ul>
-                      <p className="text-gray-500 text-[11px] pt-1">سپس روی دکمه Create بزنید تا کل پروژه مستقیماً از گیت‌هاب به هاست منتقل شود.</p>
-                    </div>
-                  </div>
-
-                  {/* Step 4: .cpanel.yml */}
-                  <div className="flex gap-3">
-                    <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-black flex items-center justify-center shrink-0 text-xs">
-                      ۴
-                    </div>
                     <div className="space-y-2 flex-1">
                       <div className="flex items-center justify-between">
-                        <div className="font-bold text-gray-900">فایل استقرار خودکار (<code className="text-emerald-800 font-mono">.cpanel.yml</code>):</div>
+                        <div className="font-bold text-gray-900">فایل استقرار خودکار (<code className="text-emerald-800 font-mono">.cpanel.yml</code>) مخصوص avinia.ir:</div>
                         <button
                           onClick={() => {
-                            const yaml = `---\ndeployment:\n  tasks:\n    - export DEPLOYPATH=/home/$USER/public_html/\n    - /bin/cp -R dist/* $DEPLOYPATH\n`;
+                            const yaml = `---\ndeployment:\n  tasks:\n    - export DEPLOYPATH=$(if [ -d "/home/$USER/public_html/avinia.ir" ]; then echo "/home/$USER/public_html/avinia.ir/"; else echo "/home/$USER/avinia.ir/"; fi)\n    - /bin/mkdir -p $DEPLOYPATH\n    - /bin/cp -R dist/* $DEPLOYPATH/\n    - /bin/cp .htaccess $DEPLOYPATH/ 2>/dev/null || true\n`;
                             navigator.clipboard.writeText(yaml);
                             setCopiedCpanelYml(true);
                             setTimeout(() => setCopiedCpanelYml(false), 2500);
@@ -636,30 +694,68 @@ export const CpanelDbModal: React.FC<CpanelDbModalProps> = ({
                         </button>
                       </div>
                       <p className="text-gray-600 leading-relaxed font-medium">
-                        این فایل از پیش در ریشه پروژه شما ساخته شده است. این اسکریپت پس از هر بار Pull کردن کد جدید، فایل‌های نهایی را به پوشه <code className="text-gray-800 font-mono">public_html</code> کپی می‌کند:
+                        این فایل از پیش در ریشه پروژه شما ایجاد شده است. این اسکریپت هوشمند مسیر دامنه <code className="text-gray-800 font-mono">avinia.ir</code> را شناسایی کرده و فایل‌ها را فقط در همان پوشه کپی می‌کند تا سایت اصلی هاست آسیبی نبیند:
                       </p>
                       <pre className="p-3 bg-slate-900 text-emerald-400 rounded-xl font-mono text-[11px] dir-ltr text-left overflow-x-auto border border-slate-800">
 {`---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/$USER/public_html/
-    - /bin/cp -R dist/* $DEPLOYPATH`}
+    - export DEPLOYPATH=$(if [ -d "/home/$USER/public_html/avinia.ir" ]; then echo "/home/$USER/public_html/avinia.ir/"; else echo "/home/$USER/avinia.ir/"; fi)
+    - /bin/mkdir -p $DEPLOYPATH
+    - /bin/cp -R dist/* $DEPLOYPATH/
+    - /bin/cp .htaccess $DEPLOYPATH/ 2>/dev/null || true`}
                       </pre>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Method 2: GitHub Actions CI/CD */}
+              {/* Step 4: .htaccess for avinia.ir */}
+              <div className="border border-purple-200 bg-purple-50/40 rounded-2xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-purple-700 text-white text-xs px-2 py-0.5 rounded-full font-bold">وب‌سرور آپاچی</span>
+                    <h4 className="text-xs font-black text-purple-950">فایل تنظیمات .htaccess اختصاصی دامنه avinia.ir (پشتیبانی از React SPA و SSL)</h4>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const htContent = `# .htaccess for avinia.ir\nOptions -Indexes\nServerSignature Off\n\n<IfModule mod_rewrite.c>\n  RewriteEngine On\n  RewriteBase /\n\n  # Force HTTPS\n  RewriteCond %{HTTPS} off\n  RewriteCond %{HTTP_HOST} ^(www\\.)?avinia\\.ir$ [NC]\n  RewriteRule ^(.*)$ https://avinia.ir/$1 [L,R=301]\n\n  # SPA Fallback\n  RewriteCond %{REQUEST_FILENAME} -f [OR]\n  RewriteCond %{REQUEST_FILENAME} -d\n  RewriteRule ^ - [L]\n\n  RewriteCond %{REQUEST_URI} ^/api [NC]\n  RewriteRule ^ - [L]\n\n  RewriteRule ^ index.html [L]\n</IfModule>\n`;
+                      navigator.clipboard.writeText(htContent);
+                      setCopiedHtaccess(true);
+                      setTimeout(() => setCopiedHtaccess(false), 2500);
+                    }}
+                    className="px-2.5 py-1 bg-white hover:bg-purple-100 text-purple-800 border border-purple-300 rounded-lg font-bold text-[11px] flex items-center gap-1 transition shadow-sm"
+                  >
+                    {copiedHtaccess ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedHtaccess ? 'کپی شد!' : 'کپی فایل .htaccess'}
+                  </button>
+                </div>
+                <p className="text-xs text-purple-900 leading-relaxed">
+                  فایل <code className="bg-white px-1.5 py-0.5 rounded font-mono font-bold text-purple-800">.htaccess</code> در پوشه دامنه <code className="font-mono">avinia.ir</code> قرار می‌گیرد و تضمین می‌کند که روت‌های ری‌اکت در هنگام رفرش صفحه با خطای ۴۰۴ مواجه نشوند و درخواست‌های <code className="font-mono">/api</code> به درستی هدایت شوند.
+                </p>
+                <pre className="p-3 bg-slate-900 text-purple-300 rounded-xl font-mono text-[11px] dir-ltr text-left overflow-x-auto border border-slate-800">
+{`# React SPA Rewrite & HTTPS for avinia.ir
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+  RewriteRule ^ index.html [L]
+</IfModule>`}
+                </pre>
+              </div>
+
+              {/* Method 2: GitHub Actions CI/CD for avinia.ir */}
               <div className="border border-indigo-200 bg-indigo-50/40 rounded-2xl p-5 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="bg-indigo-700 text-white text-xs px-2 py-0.5 rounded-full font-bold">روش ۲</span>
-                    <h4 className="text-xs font-black text-indigo-950">استقرار خودکار بدون نیاز به منابع هاست (GitHub Actions CI/CD)</h4>
+                    <h4 className="text-xs font-black text-indigo-950">استقرار خودکار به دامنه avinia.ir با GitHub Actions (بدون مصرف رم سرور)</h4>
                   </div>
                   <button
                     onClick={() => {
-                      const actionYml = `name: Deploy AgriManage to cPanel\n\non:\n  push:\n    branches: [ main ]\n\njobs:\n  build-and-deploy:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 20\n      - run: npm ci\n      - run: npm run build\n      - name: Sync to cPanel\n        uses: SamKirkland/FTP-Deploy-Action@v4.3.5\n        with:\n          server: \${{ secrets.CPANEL_FTP_SERVER }}\n          username: \${{ secrets.CPANEL_FTP_USERNAME }}\n          password: \${{ secrets.CPANEL_FTP_PASSWORD }}\n          local-dir: ./dist/\n          server-dir: /public_html/\n`;
+                      const actionYml = `name: Deploy AgriManage to cPanel (avinia.ir)\n\non:\n  push:\n    branches: [ main ]\n\njobs:\n  build-and-deploy:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 20\n      - run: npm ci\n      - run: npm run build\n      - name: Sync to avinia.ir\n        uses: SamKirkland/FTP-Deploy-Action@v4.3.5\n        with:\n          server: \${{ secrets.CPANEL_FTP_SERVER }}\n          username: \${{ secrets.CPANEL_FTP_USERNAME }}\n          password: \${{ secrets.CPANEL_FTP_PASSWORD }}\n          local-dir: ./dist/\n          server-dir: /public_html/avinia.ir/\n`;
                       navigator.clipboard.writeText(actionYml);
                       setCopiedActionYml(true);
                       setTimeout(() => setCopiedActionYml(false), 2500);
@@ -667,19 +763,18 @@ deployment:
                     className="px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-300 rounded-lg font-bold text-[11px] flex items-center gap-1 transition shadow-sm"
                   >
                     {copiedActionYml ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copiedActionYml ? 'کپی شد!' : 'کپی workflow گیت‌هاب'}
+                    {copiedActionYml ? 'کپی شد!' : 'کپی workflow اختصاصی avinia.ir'}
                   </button>
                 </div>
                 <p className="text-xs text-gray-700 leading-relaxed font-medium">
-                  در هاست‌های اشتراکی، اجرای <code className="bg-white px-1 py-0.5 rounded border">npm run build</code> گاهی به دلیل محدودیت RAM با خطا مواجه می‌شود. با این روش، پروژه روی سرورهای پرسرعت گیت‌هاب بیلد شده و فقط پوشه <code className="bg-white px-1 py-0.5 rounded border">dist</code> با FTP به <code className="bg-white px-1 py-0.5 rounded border">public_html</code> هاست cPanel منتقل می‌شود.
+                  با این متد، پروژه بر روی سرورهای GitHub کامپایل شده و خروجی پوشه <code className="bg-white px-1 py-0.5 rounded border font-mono">dist</code> مستقیماً از طریق اکانت FTP به مسیر <code className="bg-white px-1.5 py-0.5 rounded border font-mono font-bold text-indigo-900">/public_html/avinia.ir/</code> منتقل می‌گردد و هیچ تداخلی با سایر سایت‌های هاست شما ندارد.
                 </p>
                 <div className="bg-white p-3 rounded-xl border border-indigo-200 text-xs space-y-2">
-                  <div className="font-bold text-indigo-900">مراحل راه‌اندازی GitHub Actions:</div>
+                  <div className="font-bold text-indigo-900">اقدامات ساده راه‌اندازی:</div>
                   <ol className="list-decimal list-inside space-y-1 text-gray-700 pr-1">
-                    <li>فایل آماده <code className="text-indigo-800 font-mono">.github/workflows/deploy.yml</code> در مخزن شما قرار دارد.</li>
-                    <li>در گیت‌هاب به <strong>Settings &larr; Secrets and variables &larr; Actions</strong> بروید.</li>
-                    <li>سه متغیر تعریف کنید: <code className="font-mono text-gray-800 font-bold">CPANEL_FTP_SERVER</code> (آدرس اف‌تی‌پی مثل ftp.site.ir)، <code className="font-mono text-gray-800 font-bold">CPANEL_FTP_USERNAME</code> و <code className="font-mono text-gray-800 font-bold">CPANEL_FTP_PASSWORD</code>.</li>
-                    <li>از این پس هر بار که به برنچ <code className="font-mono">main</code> پوش کنید، پروژه به صورت ۱۰۰٪ خودکار روی سایت شما مستقر خواهد شد!</li>
+                    <li>فایل آماده <code className="text-indigo-800 font-mono">.github/workflows/deploy.yml</code> با مقصد <code className="font-mono font-bold">/public_html/avinia.ir/</code> تنظیم شده است.</li>
+                    <li>در cPanel وارد <strong>FTP Accounts</strong> شوید و یک اکانت FTP برای دامنه <code className="font-mono">avinia.ir</code> با دسترسی به همان پوشه بسازید.</li>
+                    <li>در GitHub به <strong>Settings &larr; Secrets and variables &larr; Actions</strong> بروید و ۳ مقدار <code className="font-mono">CPANEL_FTP_SERVER</code>، <code className="font-mono">CPANEL_FTP_USERNAME</code> و <code className="font-mono">CPANEL_FTP_PASSWORD</code> را تعریف کنید.</li>
                   </ol>
                 </div>
               </div>
@@ -689,22 +784,24 @@ deployment:
                 <div className="flex items-center justify-between text-xs font-bold text-gray-300">
                   <span className="flex items-center gap-1.5">
                     <Terminal className="w-4 h-4 text-emerald-400" />
-                    دستورات سریع خط فرمان (در صورت دسترسی به cPanel Terminal / SSH):
+                    دستورات خط فرمان ترمینال cPanel برای مسیر repositories/agrimanage:
                   </span>
                   <span className="text-[10px] text-gray-500 font-mono">Bash Shell</span>
                 </div>
                 <pre className="text-[11px] text-emerald-300 font-mono bg-black/50 p-3 rounded-xl dir-ltr text-left overflow-x-auto leading-relaxed border border-gray-800">
-{`# 1. ورود به پوشه ریشه و کلون کردن پروژه
-cd ~
+{`# 1. رفتن به پوشه مخازن و کلون یا آپدیت کد
+mkdir -p ~/repositories && cd ~/repositories
 git clone git@github.com:YOUR_USERNAME/agrimanage.git
 cd agrimanage
 
-# 2. نصب پکیج‌ها و ایجاد خروجی کامپایل‌شده
+# 2. نصب وابستگی‌ها و ایجاد خروجی فرانت و بک‌اند
 npm install
 npm run build
 
-# 3. انتقال خروجی فرانت‌اند به پوشه وب هاست
-cp -r dist/* ~/public_html/`}
+# 3. انتقال فرانت‌اند به داکیومنت روت دامنه avinia.ir
+mkdir -p ~/public_html/avinia.ir
+cp -r dist/* ~/public_html/avinia.ir/
+cp .htaccess ~/public_html/avinia.ir/`}
                 </pre>
               </div>
 

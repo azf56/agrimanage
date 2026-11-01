@@ -1,4 +1,4 @@
-name: Deploy AgriManage to cPanel
+name: Deploy AgriManage to cPanel (avinia.ir)
 
 on:
   push:
@@ -24,11 +24,15 @@ jobs:
       - name: Build Project
         run: npm run build
 
-      - name: Sync / Deploy to cPanel via FTP
+      - name: Copy .htaccess to dist
+        run: cp .htaccess dist/.htaccess || true
+
+      - name: Sync / Deploy to cPanel via FTP (Addon Domain avinia.ir)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ${{ secrets.CPANEL_FTP_SERVER }} # e.g. ftp.yourdomain.com
-          username: ${{ secrets.CPANEL_FTP_USERNAME }} # e.g. cpanel_user@yourdomain.com
+          server: ${{ secrets.CPANEL_FTP_SERVER }} # e.g. ftp.avinia.ir or server IP
+          username: ${{ secrets.CPANEL_FTP_USERNAME }} # e.g. cpanel_user or dedicated FTP account for avinia.ir
           password: ${{ secrets.CPANEL_FTP_PASSWORD }}
           local-dir: ./dist/
-          server-dir: /public_html/
+          # Deploy specifically to avinia.ir document root (NOT root public_html to preserve other sites)
+          server-dir: /public_html/avinia.ir/

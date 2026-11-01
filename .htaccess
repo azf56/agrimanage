@@ -1,0 +1,68 @@
+# ==============================================================
+# .htaccess for avinia.ir (React SPA + Express/Node.js API)
+# Isolated for multi-site cPanel hosting - Does not affect other sites
+# ==============================================================
+
+# 1. Security & Basic Settings
+Options -Indexes
+ServerSignature Off
+
+# 2. Enable Rewrite Engine
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Force HTTPS for avinia.ir
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP_HOST} ^(www\.)?avinia\.ir$ [NC]
+  RewriteRule ^(.*)$ https://avinia.ir/$1 [L,R=301]
+
+  # Optional: Reverse proxy /api to Node.js backend if running on dedicated port (e.g. 3000)
+  # Uncomment if using standalone Node.js process instead of Phusion Passenger:
+  # RewriteRule ^api/(.*)$ http://127.0.0.1:3000/api/$1 [P,L]
+
+  # 3. React SPA Fallback: Don't rewrite existing files or directories
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Don't rewrite API routes if handled by Node / Passenger
+  RewriteCond %{REQUEST_URI} ^/api [NC]
+  RewriteRule ^ - [L]
+
+  # All other requests route to index.html (SPA client-side routing)
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# 4. Gzip / Deflate Compression for High Performance
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript
+  AddOutputFilterByType DEFLATE application/javascript application/x-javascript application/json
+  AddOutputFilterByType DEFLATE application/xml application/xhtml+xml application/rss+xml
+  AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# 5. Browser Caching for Static Assets
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresDefault "access plus 1 month"
+  ExpiresByType text/html "access plus 0 seconds"
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/webp "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
+
+# 6. CORS and Security Headers
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-XSS-Protection "1; mode=block"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+  # Allow font loading
+  <FilesMatch "\.(ttf|ttc|otf|eot|woff|woff2|font.css)$">
+    Header set Access-Control-Allow-Origin "*"
+  </FilesMatch>
+</IfModule>

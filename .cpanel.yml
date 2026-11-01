@@ -1,5 +1,14 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/$USER/public_html/
-    - /bin/cp -R dist/* $DEPLOYPATH
+    # -------------------------------------------------------------
+    # Multi-Site Safe Deployment for avinia.ir
+    # -------------------------------------------------------------
+    # Safe Addon Domain deployment for avinia.ir:
+    # Automatically checks if avinia.ir is located in /home/$USER/public_html/avinia.ir/
+    # or /home/$USER/avinia.ir/.
+    # This guarantees that primary domain files in public_html and other sites remain untouched.
+    - export DEPLOYPATH=$(if [ -d "/home/$USER/public_html/avinia.ir" ]; then echo "/home/$USER/public_html/avinia.ir/"; else echo "/home/$USER/avinia.ir/"; fi)
+    - /bin/mkdir -p $DEPLOYPATH
+    - /bin/cp -R dist/* $DEPLOYPATH/
+    - /bin/cp .htaccess $DEPLOYPATH/ 2>/dev/null || true
