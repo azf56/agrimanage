@@ -14,7 +14,12 @@ import {
   WifiOff,
   Code,
   HardDrive,
-  Globe
+  Globe,
+  GitBranch,
+  Terminal,
+  ExternalLink,
+  ShieldCheck,
+  FileCode
 } from 'lucide-react';
 import { getOfflineQueue, clearOfflineQueue, getDeviceId, getLastSyncTimeFormatted } from '../offlineSync';
 
@@ -33,9 +38,11 @@ export const CpanelDbModal: React.FC<CpanelDbModalProps> = ({
   onTriggerSync,
   isSyncing
 }) => {
-  const [activeTab, setActiveTab] = useState<'sql' | 'mysql_test' | 'mobile_api' | 'offline_engine'>('sql');
+  const [activeTab, setActiveTab] = useState<'sql' | 'mysql_test' | 'mobile_api' | 'offline_engine' | 'github_deploy'>('github_deploy');
   const [sqlSchema, setSqlSchema] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [copiedCpanelYml, setCopiedCpanelYml] = useState(false);
+  const [copiedActionYml, setCopiedActionYml] = useState(false);
   const [loadingSql, setLoadingSql] = useState(false);
 
   // MySQL Test State
@@ -200,6 +207,18 @@ export const CpanelDbModal: React.FC<CpanelDbModalProps> = ({
           >
             <Smartphone className="w-4 h-4" />
             مستندات REST API اپ موبایل
+          </button>
+
+          <button
+            onClick={() => setActiveTab('github_deploy')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
+              activeTab === 'github_deploy'
+                ? 'border-emerald-600 text-emerald-700 bg-white'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <GitBranch className="w-4 h-4" />
+            اتصال به گیت‌هاب و استقرار (Git & Deploy)
           </button>
         </div>
 
@@ -513,6 +532,182 @@ export const CpanelDbModal: React.FC<CpanelDbModalProps> = ({
                 </div>
 
               </div>
+            </div>
+          )}
+
+          {/* TAB 5: GitHub & cPanel Deployment Guide */}
+          {activeTab === 'github_deploy' && (
+            <div className="space-y-6">
+              
+              {/* Introduction Banner */}
+              <div className="bg-gradient-to-l from-slate-900 to-indigo-950 text-white p-5 rounded-2xl shadow-sm border border-slate-700/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg">
+                      <GitBranch className="w-4 h-4" />
+                    </span>
+                    <h3 className="text-sm font-black text-white">اتصال مستقیم ریپازیتوری GitHub به cPanel</h3>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
+                    شما می‌توانید کد این پروژه را در GitHub قرار داده و مستقیماً از طریق کنترل‌پنل cPanel هاست کلون و مستقر نمایید. در زیر تمام مراحل قدم‌به‌قدم برای اتصال امن و استقرار خودکار آماده شده است.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-xs bg-slate-800/80 px-3 py-2 rounded-xl border border-slate-700 font-mono text-emerald-400 whitespace-nowrap">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>SSH Key + Git™ Control</span>
+                </div>
+              </div>
+
+              {/* Step 1 to 4: cPanel Git™ Version Control */}
+              <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+                <div className="bg-gray-50/80 px-5 py-3.5 border-b border-gray-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-emerald-700 text-white text-xs px-2 py-0.5 rounded-full font-bold">روش ۱</span>
+                    <h4 className="text-xs font-black text-gray-900">اتصال با ابزار رسمی cPanel Git™ Version Control (گام به گام)</h4>
+                  </div>
+                  <span className="text-[11px] text-gray-500 font-medium">ساده‌ترین روش بدون نیاز به نرم‌افزار اضافی</span>
+                </div>
+
+                <div className="p-5 space-y-4 text-xs">
+                  {/* Step 1 */}
+                  <div className="flex gap-3">
+                    <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-black flex items-center justify-center shrink-0 text-xs">
+                      ۱
+                    </div>
+                    <div className="space-y-1 flex-1">
+                      <div className="font-bold text-gray-900">دریافت یا ساخت کلید SSH در cPanel:</div>
+                      <p className="text-gray-600 leading-relaxed font-medium">
+                        در صفحه اصلی cPanel وارد بخش <strong>SSH Access</strong> شوید (یا مستقیماً در <strong>Git™ Version Control</strong> روی لینک SSH کلیک کنید). روی <strong>Manage SSH Keys</strong> و سپس <strong>Generate a New Key</strong> کلیک کرده، نام کلید را بگذارید و روی Generate بزنید. سپس کلید عمومی (Public Key) را کپی (View/Copy) کنید و دکمه <strong>Authorize</strong> را بزنید.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="flex gap-3">
+                    <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-black flex items-center justify-center shrink-0 text-xs">
+                      ۲
+                    </div>
+                    <div className="space-y-1 flex-1">
+                      <div className="font-bold text-gray-900">ثبت کلید در ریپازیتوری GitHub (Deploy Key):</div>
+                      <p className="text-gray-600 leading-relaxed font-medium">
+                        در صفحه ریپازیتوری خود در GitHub به تب <strong>Settings</strong> &larr; منوی سمت چپ <strong>Deploy Keys</strong> بروید. دکمه <strong>Add deploy key</strong> را بزنید. یک عنوان (مثلاً <code className="bg-gray-100 px-1 py-0.5 rounded">cPanel-Server</code>) بدهید و متن کلید عمومی کپی‌شده از cPanel را پیست کنید و ذخیره نمایید.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="flex gap-3">
+                    <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-black flex items-center justify-center shrink-0 text-xs">
+                      ۳
+                    </div>
+                    <div className="space-y-1 flex-1">
+                      <div className="font-bold text-gray-900">کلون کردن ریپازیتوری در cPanel:</div>
+                      <p className="text-gray-600 leading-relaxed font-medium">
+                        در cPanel به منوی <strong>Git™ Version Control</strong> بروید و روی دکمه <strong>Create</strong> کلیک کنید:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 pr-2 text-gray-700 bg-gray-50 p-3 rounded-xl border border-gray-200/80">
+                        <li><strong>Clone URL:</strong> آدرس SSH مخزن گیت‌هاب (مثلاً <code className="text-emerald-700 font-mono dir-ltr">git@github.com:username/agrimanage.git</code>)</li>
+                        <li><strong>Repository Path:</strong> مسیر ذخیره روی هاست (مثلاً <code className="text-gray-800 font-mono dir-ltr">repositories/agrimanage</code>)</li>
+                        <li><strong>Repository Name:</strong> نام مخزن (مثلاً <code className="text-gray-800 font-mono">agrimanage</code>)</li>
+                      </ul>
+                      <p className="text-gray-500 text-[11px] pt-1">سپس روی دکمه Create بزنید تا کل پروژه مستقیماً از گیت‌هاب به هاست منتقل شود.</p>
+                    </div>
+                  </div>
+
+                  {/* Step 4: .cpanel.yml */}
+                  <div className="flex gap-3">
+                    <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-black flex items-center justify-center shrink-0 text-xs">
+                      ۴
+                    </div>
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-center justify-between">
+                        <div className="font-bold text-gray-900">فایل استقرار خودکار (<code className="text-emerald-800 font-mono">.cpanel.yml</code>):</div>
+                        <button
+                          onClick={() => {
+                            const yaml = `---\ndeployment:\n  tasks:\n    - export DEPLOYPATH=/home/$USER/public_html/\n    - /bin/cp -R dist/* $DEPLOYPATH\n`;
+                            navigator.clipboard.writeText(yaml);
+                            setCopiedCpanelYml(true);
+                            setTimeout(() => setCopiedCpanelYml(false), 2500);
+                          }}
+                          className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-lg font-bold text-[11px] flex items-center gap-1 transition"
+                        >
+                          {copiedCpanelYml ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          {copiedCpanelYml ? 'کپی شد!' : 'کپی فایل .cpanel.yml'}
+                        </button>
+                      </div>
+                      <p className="text-gray-600 leading-relaxed font-medium">
+                        این فایل از پیش در ریشه پروژه شما ساخته شده است. این اسکریپت پس از هر بار Pull کردن کد جدید، فایل‌های نهایی را به پوشه <code className="text-gray-800 font-mono">public_html</code> کپی می‌کند:
+                      </p>
+                      <pre className="p-3 bg-slate-900 text-emerald-400 rounded-xl font-mono text-[11px] dir-ltr text-left overflow-x-auto border border-slate-800">
+{`---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/$USER/public_html/
+    - /bin/cp -R dist/* $DEPLOYPATH`}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Method 2: GitHub Actions CI/CD */}
+              <div className="border border-indigo-200 bg-indigo-50/40 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-indigo-700 text-white text-xs px-2 py-0.5 rounded-full font-bold">روش ۲</span>
+                    <h4 className="text-xs font-black text-indigo-950">استقرار خودکار بدون نیاز به منابع هاست (GitHub Actions CI/CD)</h4>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const actionYml = `name: Deploy AgriManage to cPanel\n\non:\n  push:\n    branches: [ main ]\n\njobs:\n  build-and-deploy:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 20\n      - run: npm ci\n      - run: npm run build\n      - name: Sync to cPanel\n        uses: SamKirkland/FTP-Deploy-Action@v4.3.5\n        with:\n          server: \${{ secrets.CPANEL_FTP_SERVER }}\n          username: \${{ secrets.CPANEL_FTP_USERNAME }}\n          password: \${{ secrets.CPANEL_FTP_PASSWORD }}\n          local-dir: ./dist/\n          server-dir: /public_html/\n`;
+                      navigator.clipboard.writeText(actionYml);
+                      setCopiedActionYml(true);
+                      setTimeout(() => setCopiedActionYml(false), 2500);
+                    }}
+                    className="px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-300 rounded-lg font-bold text-[11px] flex items-center gap-1 transition shadow-sm"
+                  >
+                    {copiedActionYml ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedActionYml ? 'کپی شد!' : 'کپی workflow گیت‌هاب'}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-700 leading-relaxed font-medium">
+                  در هاست‌های اشتراکی، اجرای <code className="bg-white px-1 py-0.5 rounded border">npm run build</code> گاهی به دلیل محدودیت RAM با خطا مواجه می‌شود. با این روش، پروژه روی سرورهای پرسرعت گیت‌هاب بیلد شده و فقط پوشه <code className="bg-white px-1 py-0.5 rounded border">dist</code> با FTP به <code className="bg-white px-1 py-0.5 rounded border">public_html</code> هاست cPanel منتقل می‌شود.
+                </p>
+                <div className="bg-white p-3 rounded-xl border border-indigo-200 text-xs space-y-2">
+                  <div className="font-bold text-indigo-900">مراحل راه‌اندازی GitHub Actions:</div>
+                  <ol className="list-decimal list-inside space-y-1 text-gray-700 pr-1">
+                    <li>فایل آماده <code className="text-indigo-800 font-mono">.github/workflows/deploy.yml</code> در مخزن شما قرار دارد.</li>
+                    <li>در گیت‌هاب به <strong>Settings &larr; Secrets and variables &larr; Actions</strong> بروید.</li>
+                    <li>سه متغیر تعریف کنید: <code className="font-mono text-gray-800 font-bold">CPANEL_FTP_SERVER</code> (آدرس اف‌تی‌پی مثل ftp.site.ir)، <code className="font-mono text-gray-800 font-bold">CPANEL_FTP_USERNAME</code> و <code className="font-mono text-gray-800 font-bold">CPANEL_FTP_PASSWORD</code>.</li>
+                    <li>از این پس هر بار که به برنچ <code className="font-mono">main</code> پوش کنید، پروژه به صورت ۱۰۰٪ خودکار روی سایت شما مستقر خواهد شد!</li>
+                  </ol>
+                </div>
+              </div>
+
+              {/* SSH Terminal Quick Commands */}
+              <div className="bg-gray-900 text-gray-100 p-4 rounded-2xl border border-gray-800 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-gray-300">
+                  <span className="flex items-center gap-1.5">
+                    <Terminal className="w-4 h-4 text-emerald-400" />
+                    دستورات سریع خط فرمان (در صورت دسترسی به cPanel Terminal / SSH):
+                  </span>
+                  <span className="text-[10px] text-gray-500 font-mono">Bash Shell</span>
+                </div>
+                <pre className="text-[11px] text-emerald-300 font-mono bg-black/50 p-3 rounded-xl dir-ltr text-left overflow-x-auto leading-relaxed border border-gray-800">
+{`# 1. ورود به پوشه ریشه و کلون کردن پروژه
+cd ~
+git clone git@github.com:YOUR_USERNAME/agrimanage.git
+cd agrimanage
+
+# 2. نصب پکیج‌ها و ایجاد خروجی کامپایل‌شده
+npm install
+npm run build
+
+# 3. انتقال خروجی فرانت‌اند به پوشه وب هاست
+cp -r dist/* ~/public_html/`}
+                </pre>
+              </div>
+
             </div>
           )}
 

@@ -1,0 +1,34 @@
+name: Deploy AgriManage to cPanel
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Project
+        run: npm run build
+
+      - name: Sync / Deploy to cPanel via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.CPANEL_FTP_SERVER }} # e.g. ftp.yourdomain.com
+          username: ${{ secrets.CPANEL_FTP_USERNAME }} # e.g. cpanel_user@yourdomain.com
+          password: ${{ secrets.CPANEL_FTP_PASSWORD }}
+          local-dir: ./dist/
+          server-dir: /public_html/
