@@ -46,6 +46,7 @@ export const CpanelDbModal: React.FC<CpanelDbModalProps> = ({
   const [copiedHtaccess, setCopiedHtaccess] = useState(false);
   const [copiedNodeConfig, setCopiedNodeConfig] = useState(false);
   const [copiedCloneFixCmd, setCopiedCloneFixCmd] = useState(false);
+  const [copiedUpdateCmd, setCopiedUpdateCmd] = useState(false);
   const [loadingSql, setLoadingSql] = useState(false);
 
   // MySQL Test State
@@ -563,6 +564,80 @@ export const CpanelDbModal: React.FC<CpanelDbModalProps> = ({
                   <div className="flex items-center gap-2 text-[11px] text-slate-300">
                     <HardDrive className="w-3.5 h-3.5 text-indigo-400" />
                     <span>repositories/agrimanage</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* QUICK UPDATE BANNER (Latest Changes from GitHub) */}
+              <div className="border-2 border-emerald-500 bg-emerald-950 text-white rounded-2xl p-5 space-y-4 shadow-lg">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="p-2 bg-emerald-500 text-gray-950 rounded-xl font-black">
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                    </span>
+                    <div>
+                      <h4 className="text-sm font-black text-emerald-300">
+                        بروزرسانی مستقیم پروژه از گیت‌هاب به آخرین نسخه
+                      </h4>
+                      <p className="text-xs text-emerald-100">
+                        اگر پروژه قبلاً در <code className="text-emerald-300 font-mono">repositories/agrimanage</code> ذخیره شده و می‌خواهید آخرین تغییرات را اعمال کنید:
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const updateCmd = `cd ~/repositories/agrimanage\nbash update.sh\n`;
+                      navigator.clipboard.writeText(updateCmd);
+                      setCopiedUpdateCmd(true);
+                      setTimeout(() => setCopiedUpdateCmd(false), 2500);
+                    }}
+                    className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-gray-950 rounded-xl font-black text-xs flex items-center gap-1.5 transition shadow-sm shrink-0"
+                  >
+                    {copiedUpdateCmd ? <Check className="w-4 h-4 text-emerald-950" /> : <Copy className="w-4 h-4" />}
+                    {copiedUpdateCmd ? 'دستور کپی شد!' : 'کپی دستور بروزرسانی خودکار (۱ ثانیه‌ای)'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  {/* Option A: Terminal */}
+                  <div className="bg-slate-900/90 border border-emerald-800/80 rounded-xl p-3.5 space-y-2">
+                    <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                      <Terminal className="w-4 h-4" />
+                      <span>روش ۱ (پیشنهادی و تضمینی): اجرای اسکریپت خودکار در ترمینال</span>
+                    </div>
+                    <p className="text-slate-300 text-[11px] leading-relaxed">
+                      در cPanel به منوی <strong>Terminal</strong> بروید و این دو خط را پیست کرده و اینتر بزنید. اسکریپت <code className="text-emerald-400 font-mono">update.sh</code> تمام مراحل پول گیت، حل تعارضات محلی، بیلد فرانت‌اند/بک‌اند، اصلاح پرمیشن‌ها (755/644) و ری‌استارت سرور را اتوماتیک انجام می‌دهد:
+                    </p>
+                    <pre className="p-2.5 bg-black/60 text-emerald-300 rounded-lg font-mono text-[11px] dir-ltr text-left overflow-x-auto border border-emerald-900">
+{`cd ~/repositories/agrimanage
+bash update.sh`}
+                    </pre>
+                  </div>
+
+                  {/* Option B: cPanel GUI */}
+                  <div className="bg-slate-900/90 border border-emerald-800/80 rounded-xl p-3.5 space-y-2">
+                    <div className="flex items-center gap-2 text-indigo-400 font-bold">
+                      <GitBranch className="w-4 h-4" />
+                      <span>روش ۲: از طریق محیط گرافیکی Git Version Control</span>
+                    </div>
+                    <ol className="list-decimal list-inside space-y-1 text-slate-300 text-[11px] pr-1 leading-relaxed">
+                      <li>در cPanel به <strong>Git™ Version Control</strong> بروید.</li>
+                      <li>در ردیف <code className="text-emerald-300 font-mono">agrimanage</code> دکمه <strong>Manage</strong> را بزنید.</li>
+                      <li>به تب <strong>Pull or Deploy</strong> بروید و روی <strong>Update from Remote</strong> کلیک کنید.</li>
+                      <li>سپس دکمه <strong>Deploy HEAD Commit</strong> را بزنید.</li>
+                      <li>به منوی <strong>Setup Node.js App</strong> رفته و روی <strong>Restart</strong> کلیک کنید.</li>
+                    </ol>
+                  </div>
+                </div>
+
+                {/* Important notice if local changes error happens */}
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-[11px] text-amber-200 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <strong className="text-amber-300">در صورت مواجهه با خطای Your local changes would be overwritten by merge:</strong>
+                    <p className="text-slate-300 leading-relaxed">
+                      اگر قبلاً در هاست تغییری دستی روی فایل‌ها داده‌اید و گیت خطای مغایرت داد، کافیست دستور <code className="text-amber-300 font-mono bg-black/40 px-1 py-0.5 rounded dir-ltr">git fetch --all && git reset --hard origin/main</code> را در ترمینال بزنید تا کدهای هاست فوراً دقیقاً منطبق با آخرین نسخه گیت‌هاب شود.
+                    </p>
                   </div>
                 </div>
               </div>
