@@ -586,7 +586,7 @@ export const CpanelDbModal: React.FC<CpanelDbModalProps> = ({
                   </div>
                   <button
                     onClick={() => {
-                      const updateCmd = `cd ~/repositories/agrimanage\nbash update.sh\n`;
+                      const updateCmd = `source /home/mjzgukzg/nodevenv/repositories/agrimanage/22/bin/activate && cd /home/mjzgukzg/repositories/agrimanage && bash update.sh\n`;
                       navigator.clipboard.writeText(updateCmd);
                       setCopiedUpdateCmd(true);
                       setTimeout(() => setCopiedUpdateCmd(false), 2500);
@@ -594,7 +594,7 @@ export const CpanelDbModal: React.FC<CpanelDbModalProps> = ({
                     className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-gray-950 rounded-xl font-black text-xs flex items-center gap-1.5 transition shadow-sm shrink-0"
                   >
                     {copiedUpdateCmd ? <Check className="w-4 h-4 text-emerald-950" /> : <Copy className="w-4 h-4" />}
-                    {copiedUpdateCmd ? 'دستور کپی شد!' : 'کپی دستور بروزرسانی خودکار (۱ ثانیه‌ای)'}
+                    {copiedUpdateCmd ? 'دستور کپی شد!' : 'کپی دستور بروزرسانی خودکار با Node 22'}
                   </button>
                 </div>
 
@@ -606,11 +606,10 @@ export const CpanelDbModal: React.FC<CpanelDbModalProps> = ({
                       <span>روش ۱ (پیشنهادی و تضمینی): اجرای اسکریپت خودکار در ترمینال</span>
                     </div>
                     <p className="text-slate-300 text-[11px] leading-relaxed">
-                      در cPanel به منوی <strong>Terminal</strong> بروید و این دو خط را پیست کرده و اینتر بزنید. اسکریپت <code className="text-emerald-400 font-mono">update.sh</code> تمام مراحل پول گیت، حل تعارضات محلی، بیلد فرانت‌اند/بک‌اند، اصلاح پرمیشن‌ها (755/644) و ری‌استارت سرور را اتوماتیک انجام می‌دهد:
+                      در cPanel به منوی <strong>Terminal</strong> بروید و این دستور را پیست کرده و اینتر بزنید. اسکریپت در محیط اختصاصی <code className="text-emerald-300 font-mono">Node.js 22</code> فعال شده و تمام مراحل پول گیت، بیلد فرانت‌اند/بک‌اند، اصلاح دسترسی‌ها (755/644) و ری‌استارت را اتوماتیک انجام می‌دهد:
                     </p>
                     <pre className="p-2.5 bg-black/60 text-emerald-300 rounded-lg font-mono text-[11px] dir-ltr text-left overflow-x-auto border border-emerald-900">
-{`cd ~/repositories/agrimanage
-bash update.sh`}
+{`source /home/mjzgukzg/nodevenv/repositories/agrimanage/22/bin/activate && cd /home/mjzgukzg/repositories/agrimanage && bash update.sh`}
                     </pre>
                   </div>
 
