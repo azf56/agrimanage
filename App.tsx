@@ -26,8 +26,10 @@ import {
   Database,
   Wifi,
   WifiOff,
-  RefreshCw
+  RefreshCw,
+  Globe
 } from 'lucide-react';
+
 
 import { 
   User, 
@@ -56,6 +58,7 @@ import Sidebar, { ActiveTab } from './components/Sidebar';
 import Login from './components/Login';
 import MobileNavigation from './components/MobileNavigation';
 import CpanelDbModal from './components/CpanelDbModal';
+import { StoreIntegrationHubModal } from './components/StoreIntegrationHubModal';
 import { getTodayJalali, toPersianNumbers } from './jalaliDate';
 import { 
   getLocalCachedData, 
@@ -76,6 +79,7 @@ export const App: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
   const [showCpanelModal, setShowCpanelModal] = useState(false);
+  const [showStoreHubModal, setShowStoreHubModal] = useState(false);
   const [newPassword, setNewPassword] = useState('');
 
   // Offline Engine & Network Sync States
@@ -413,6 +417,7 @@ export const App: React.FC = () => {
         onLogout={handleLogout}
         onOpenPasswordModal={() => setShowPasswordChangeModal(true)}
         onOpenCpanelModal={isFarmer ? undefined : () => setShowCpanelModal(true)}
+        onOpenStoreHubModal={isFarmer ? undefined : () => setShowStoreHubModal(true)}
         isOnline={isOnline}
         pendingSyncCount={pendingSyncCount}
         onTriggerSync={triggerFullSync}
@@ -487,15 +492,27 @@ export const App: React.FC = () => {
 
               {/* cPanel Database & Mobile API Modal Trigger (Hidden for Farmer) */}
               {!isFarmer && (
-                <button
-                  onClick={() => setShowCpanelModal(true)}
-                  className="hidden lg:flex items-center gap-1.5 bg-teal-50 border border-teal-200 text-teal-800 hover:bg-teal-100 px-3 py-1.5 rounded-2xl text-xs font-black transition shadow-2xs"
-                  title="مشاهده اسکریپت MySQL هاست cPanel و وب‌سرویس اپ موبایل"
-                >
-                  <Database className="w-3.5 h-3.5 text-teal-700" />
-                  <span>دیتابیس cPanel و API</span>
-                </button>
+                <>
+                  <button
+                    onClick={() => setShowCpanelModal(true)}
+                    className="hidden lg:flex items-center gap-1.5 bg-teal-50 border border-teal-200 text-teal-800 hover:bg-teal-100 px-3 py-1.5 rounded-2xl text-xs font-black transition shadow-2xs"
+                    title="مشاهده اسکریپت MySQL هاست cPanel و وب‌سرویس اپ موبایل"
+                  >
+                    <Database className="w-3.5 h-3.5 text-teal-700" />
+                    <span>دیتابیس cPanel و API</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowStoreHubModal(true)}
+                    className="hidden lg:flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 px-3 py-1.5 rounded-2xl text-xs font-black transition shadow-2xs"
+                    title="مرکز وب‌سرویس و اتصال به سامانه فروش نهاده‌ها"
+                  >
+                    <Globe className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>اتصال به فروشگاه نهاده‌ها</span>
+                  </button>
+                </>
               )}
+
 
               {/* Date & Weather Indicator */}
               <div className="hidden xl:flex items-center gap-2 bg-emerald-50 text-emerald-900 border border-emerald-200/80 px-3.5 py-1.5 rounded-2xl text-xs font-bold">
@@ -746,8 +763,18 @@ export const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      {showStoreHubModal && (
+        <StoreIntegrationHubModal
+          isOpen={showStoreHubModal}
+          onClose={() => setShowStoreHubModal(false)}
+          onRefreshData={triggerFullSync}
+        />
+      )}
+
     </div>
   );
 };
+
 
 export default App;

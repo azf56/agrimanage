@@ -349,3 +349,38 @@ export interface CpanelDbConfig {
   password?: string;
   ssl?: boolean;
 }
+
+export interface StoreProduct {
+  id: string;
+  name: string;
+  brand: string;
+  category: 'nutrition' | 'pesticide' | 'soil_conditioner' | 'equipment';
+  categoryLabel: string;
+  activeIngredient: string;
+  packSize: string;
+  pricePerUnit: number;
+  unit: string;
+  applicationRatePer1000L: string;
+  standardRatePerHectare: number;
+  inStock: boolean;
+  stockCount?: number;
+  description: string;
+  matchingKeywords: string[];
+}
+
+export interface MatchedStoreInput {
+  product: StoreProduct;
+  recommendedAmount: number;
+  unit: string;
+  estimatedCost: number;
+  reason: string;
+}
+
+export interface StoreIntegrationSettings {
+  storeApiUrl: string;
+  apiKey: string;
+  sharedSecret: string;
+  autoSyncOrders: boolean;
+  lastSyncAt?: string;
+}
+

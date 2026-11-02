@@ -20,7 +20,8 @@ import {
   Trees, 
   X,
   Sliders,
-  Database
+  Database,
+  Globe
 } from 'lucide-react';
 import { User } from '../types';
 
@@ -44,6 +45,7 @@ interface SidebarProps {
   onLogout: () => void;
   onOpenPasswordModal: () => void;
   onOpenCpanelModal?: () => void;
+  onOpenStoreHubModal?: () => void;
   isOnline?: boolean;
   pendingSyncCount?: number;
   onTriggerSync?: () => void;
@@ -68,6 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
   onOpenPasswordModal,
   onOpenCpanelModal,
+  onOpenStoreHubModal,
   isOnline = true,
   pendingSyncCount = 0,
   onTriggerSync,
@@ -400,6 +403,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <div className="flex items-center gap-2.5 truncate">
                         <Database className="w-3.5 h-3.5 shrink-0 text-teal-300" />
                         {(!isCollapsed || isOpenMobile) && <span className="truncate">دیتابیس cPanel و API موبایل</span>}
+                      </div>
+                    </button>
+                  )}
+
+                  {onOpenStoreHubModal && (
+                    <button
+                      onClick={() => {
+                        onOpenStoreHubModal();
+                        setIsOpenMobile(false);
+                      }}
+                      title="مرکز وب‌سرویس و اتصال به سامانه فروش نهاده‌ها"
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-teal-200 hover:bg-teal-900/60 hover:text-white transition text-right group"
+                    >
+                      <div className="flex items-center gap-2.5 truncate">
+                        <Globe className="w-3.5 h-3.5 shrink-0 text-teal-300" />
+                        {(!isCollapsed || isOpenMobile) && <span className="truncate">اتصال به فروشگاه نهاده‌ها</span>}
                       </div>
                     </button>
                   )}

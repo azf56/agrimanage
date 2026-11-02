@@ -3,10 +3,13 @@ import { Task, Land, Owner, User, TaskCategory, Visit } from '../types';
 import { 
   ClipboardCheck, Plus, Search, CheckCircle2, Clock, AlertTriangle, ShieldAlert, 
   Sprout, Activity, Check, X, Filter, UserCheck, Calendar, Sparkles, FileText, 
-  ArrowRight, CheckCheck, Eye, Layers, Trees, ShieldCheck, Sun, Thermometer, Droplets, Wind, ExternalLink
+  ArrowRight, CheckCheck, Eye, Layers, Trees, ShieldCheck, Sun, Thermometer, Droplets, Wind, ExternalLink,
+  ShoppingBag, Globe
 } from 'lucide-react';
 import { JalaliDatePicker } from './JalaliDatePicker';
 import { getTodayJalali, toPersianNumbers } from '../jalaliDate';
+import { StorePrescriptionModal } from './StorePrescriptionModal';
+import { StoreIntegrationHubModal } from './StoreIntegrationHubModal';
 
 interface TasksTabProps {
   tasks: Task[];
@@ -37,6 +40,8 @@ export const TasksTab: React.FC<TasksTabProps> = ({
   const [categoryFilter, setCategoryFilter] = useState<'all' | TaskCategory>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'pending' | 'confirmed'>('all');
   const [showModal, setShowModal] = useState(false);
+  const [selectedStoreTask, setSelectedStoreTask] = useState<Task | null>(null);
+  const [showIntegrationHub, setShowIntegrationHub] = useState(false);
 
   // Filtering states for Recommendations Sub-tab
   const [recSearchTerm, setRecSearchTerm] = useState('');
@@ -326,6 +331,15 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            <button
+              onClick={() => setShowIntegrationHub(true)}
+              className="bg-teal-700 hover:bg-teal-800 text-white px-3.5 py-2.5 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md transition"
+              title="مرکز وب‌سرویس و اتصال به سامانه فروش نهاده‌ها"
+            >
+              <Globe className="w-4 h-4 text-teal-200" />
+              <span>اتصال به سامانه فروش نهاده‌ها</span>
+            </button>
+
             {activeSubTab === 'tasks' && user?.role !== 'farmer' && (
               <button
                 onClick={() => setShowModal(true)}
@@ -335,6 +349,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
               </button>
             )}
           </div>
+
         </div>
 
         {/* Sub-tab Switcher: Approved Tasks vs Visit Recommendations */}
@@ -530,7 +545,17 @@ export const TasksTab: React.FC<TasksTabProps> = ({
                       {task.isConfirmed ? 'تایید نهایی کارشناس' : task.farmerDone ? 'انجام شد (منتظر تایید کارشناس)' : 'در انتظار اجرا توسط باغدار'}
                     </span>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStoreTask(task)}
+                        className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-black px-3 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1.5"
+                        title="مشاهده و خرید اقلام این نسخه از سامانه نهاده‌ها"
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>خرید نهاده‌های این نسخه</span>
+                      </button>
+
                       {!task.farmerDone && (
                         <button
                           onClick={() => {
@@ -1170,8 +1195,27 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           </div>
         </div>
       )}
+
+      {/* Store Prescription Modal */}
+      {selectedStoreTask && (
+        <StorePrescriptionModal
+          isOpen={!!selectedStoreTask}
+          onClose={() => setSelectedStoreTask(null)}
+          task={selectedStoreTask}
+          land={lands.find(l => l.id === selectedStoreTask.landId)}
+          owner={owners.find(o => o.id === lands.find(l => l.id === selectedStoreTask.landId)?.ownerId)}
+          currentUser={user}
+        />
+      )}
+
+      {/* Store Integration Hub Modal */}
+      <StoreIntegrationHubModal
+        isOpen={showIntegrationHub}
+        onClose={() => setShowIntegrationHub(false)}
+      />
     </div>
   );
 };
+
 
 export default TasksTab;

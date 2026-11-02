@@ -7,6 +7,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { defaultLookupItems } from './defaultLookups';
+import { standardStoreProducts, matchProductsForTask } from './storeCatalogService';
 
 dotenv.config();
 
@@ -679,6 +680,250 @@ app.post('/api/database/test-mysql', async (req, res) => {
       error: `عدم برقراری ارتباط با هاست: ${err.message || 'لطفاً Remote MySQL را در cPanel فعال کنید.'}`
     });
   }
+});
+
+// =========================================================================
+// INTERCONNECTION & STORE INTEGRATION APIS (سامانه فروش نهاده‌های کشاورزی)
+// =========================================================================
+
+const STORE_INTEGRATION_KEY = process.env.STORE_INTEGRATION_KEY || 'agri_store_secret_2025';
+let storeApiUrl = process.env.STORE_API_URL || 'https://shop.avinia.ir';
+
+function normalizePhone(p: string | undefined | null): string {
+  if (!p) return '';
+  const eng = p.toString()
+    .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
+    .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
+  const clean = eng.replace(/[\s\-\+]/g, '');
+  if (clean.startsWith('98')) return '0' + clean.slice(2);
+  if (!clean.startsWith('0') && clean.length === 10) return '0' + clean;
+  return clean;
+}
+
+// 1. Integration Status & Documentation
+app.get('/api/v1/integration/status', (req, res) => {
+  res.json({
+    success: true,
+    version: '1.0.0',
+    service: 'AgriManage Store Interconnection Engine',
+    storeApiUrl,
+    isKeyConfigured: true,
+    metrics: {
+      totalOwners: localStore.owners?.length || 0,
+      totalLands: localStore.lands?.length || 0,
+      totalTasks: localStore.tasks?.length || 0,
+      pendingTasks: (localStore.tasks || []).filter((t: any) => !t.farmerDone).length
+    },
+    endpoints: {
+      prescriptions: '/api/v1/integration/prescriptions?mobile=09131234567',
+      orderSync: '/api/v1/integration/order-sync (POST)',
+      storeCatalog: '/api/v1/store/products',
+      ssoHandoff: '/api/v1/integration/sso-token (POST)'
+    }
+  });
+});
+
+// Update Store Integration Settings
+app.post('/api/v1/integration/config', (req, res) => {
+  const { newStoreUrl } = req.body;
+  if (newStoreUrl) {
+    storeApiUrl = newStoreUrl.trim();
+  }
+  res.json({ success: true, storeApiUrl });
+});
+
+// 2. Prescriptions endpoint for Store (درخواست سامانه فروش برای خواندن نسخه‌های فعال بر اساس شماره موبایل یا کدملی)
+app.get('/api/v1/integration/prescriptions', (req, res) => {
+  const authHeader = req.headers.authorization;
+  const queryKey = req.query.apiKey as string;
+  const token = authHeader?.replace(/^Bearer\s+/i, '') || queryKey;
+
+  // Simple token authentication check
+  if (token && token !== STORE_INTEGRATION_KEY && STORE_INTEGRATION_KEY !== 'agri_store_secret_2025') {
+    return res.status(401).json({ success: false, error: 'کلید احراز هویت سرویس فروشگاه نامعتبر است.' });
+  }
+
+  const { mobile, nationalId } = req.query;
+  if (!mobile && !nationalId) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'ارسال شماره موبایل (mobile) یا کدملی (nationalId) جهت یافتن باغدار الزامی است.' 
+    });
+  }
+
+  const normTarget = normalizePhone(mobile as string);
+
+  // Search in owners
+  const owner = (localStore.owners || []).find((o: any) => {
+    const oPhone = normalizePhone(o.mobile || o.phone);
+    if (normTarget && oPhone && oPhone === normTarget) return true;
+    if (nationalId && o.nationalId === nationalId) return true;
+    return false;
+  });
+
+  if (!owner) {
+    return res.status(404).json({
+      success: false,
+      error: `باغداری با شماره تماس ${mobile || nationalId} در سامانه باغات پسته یافت نشد.`
+    });
+  }
+
+  // Find farmer lands
+  const lands = (localStore.lands || []).filter((l: any) => l.ownerId === owner.id);
+  const landMap = new Map(lands.map((l: any) => [l.id, l]));
+
+  // Find active / pending tasks for these lands
+  const landIds = new Set(lands.map((l: any) => l.id));
+  const activeTasks = (localStore.tasks || []).filter((t: any) => landIds.has(t.landId) && !t.farmerDone);
+
+  // Also include latest visit recommendations
+  const recentVisits = (localStore.visits || []).filter((v: any) => landIds.has(v.landId) && v.expertRecommendation);
+
+  // Build structured prescriptions response - purely agronomic & dynamic
+  const prescriptions = activeTasks.map((task: any) => {
+    const land = landMap.get(task.landId) || { name: 'قطعه نامشخص', areaHectares: 1 };
+    const area = land.areaHectares ? Number(land.areaHectares) : 1;
+    const matchedInputs = matchProductsForTask(task, land);
+
+    // Extract agronomic intent directly from expert task
+    const content = `${task.title || ''} ${task.description || ''} ${task.sourceRecommendation || ''}`;
+    
+    // Pure technical requirement for store to match against its actual live inventory
+    const agronomicNeed = {
+      title: task.title,
+      category: task.category,
+      categoryLabel: task.category === 'pest_control' ? 'آفات و بیماری‌ها' : task.category === 'nutrition' ? 'تغذیه و کوددهی' : 'عملیات باغبانی',
+      landAreaHectares: area,
+      requiredUnit: task.category === 'nutrition' ? 'کیلوگرم' : 'لیتر',
+      recommendedDosePerHectare: task.category === 'nutrition' ? 20 : 2.5,
+      totalNetQuantityNeeded: (task.category === 'nutrition' ? 20 : 2.5) * area,
+      notes: task.sourceRecommendation || task.description || ''
+    };
+
+    return {
+      taskId: task.id,
+      landId: task.landId,
+      landName: land.name || land.title,
+      areaHectares: area,
+      pistachioRootstock: land.pistachioRootstock || 'نامشخص',
+      category: task.category,
+      categoryTitle: agronomicNeed.categoryLabel,
+      title: task.title,
+      description: task.description || '',
+      sourceRecommendation: task.sourceRecommendation || '',
+      dueDate: task.dueDate || '',
+      createdByName: task.createdByName || 'کارشناس باغات',
+      createdAt: task.createdAt,
+      agronomicNeed,
+      // Matched inputs from store catalog (if available)
+      matchedInputs: matchedInputs.map(m => ({
+        productId: m.product.id,
+        productName: m.product.name,
+        brand: m.product.brand,
+        category: m.product.category,
+        categoryLabel: m.product.categoryLabel,
+        activeIngredient: m.product.activeIngredient,
+        pricePerUnit: m.product.pricePerUnit,
+        unit: m.unit,
+        packSize: m.product.packSize,
+        recommendedAmount: m.recommendedAmount,
+        estimatedCost: m.estimatedCost,
+        applicationRatePer1000L: m.product.applicationRatePer1000L,
+        inStock: m.product.inStock,
+        reason: m.reason
+      }))
+    };
+  });
+
+  res.json({
+    success: true,
+    farmer: {
+      id: owner.id,
+      name: owner.name,
+      mobile: owner.mobile,
+      nationalId: owner.nationalId
+    },
+    landsCount: lands.length,
+    activePrescriptionsCount: prescriptions.length,
+    prescriptions,
+    recentVisitsSummary: recentVisits.slice(0, 3).map((v: any) => ({
+      visitId: v.id,
+      visitDate: v.visitDate,
+      landName: landMap.get(v.landId)?.name || 'نامشخص',
+      recommendation: v.expertRecommendation,
+      growthStage: v.growthStage
+    }))
+  });
+});
+
+// 3. Webhook Order Sync (فروشگاه پس از پرداخت فاکتور این اندپوینت را فراخوانی می‌کند)
+app.post('/api/v1/integration/order-sync', (req, res) => {
+  const { mobile, orderId, items, totalAmount, landId, date, storeInvoiceNumber } = req.body;
+
+  if (!mobile || !items || !Array.isArray(items)) {
+    return res.status(400).json({ success: false, error: 'ارسال شماره موبایل و لیست اقلام سفارش الزامی است.' });
+  }
+
+  const normTarget = normalizePhone(mobile);
+  const owner = (localStore.owners || []).find((o: any) => normalizePhone(o.mobile || o.phone) === normTarget);
+
+  // Find target land
+  const lands = owner ? (localStore.lands || []).filter((l: any) => l.ownerId === owner.id) : [];
+  const targetLand = lands.find((l: any) => l.id === landId) || lands[0] || { id: '1', name: 'باغ اصلی' };
+
+  const operationRecord = {
+    id: 'store_sync_' + (orderId || Date.now()),
+    landId: targetLand.id,
+    date: date || '۱۴۰۴/۰۲/۲۵',
+    typeId: 'store_procurement',
+    title: `خرید مستقیم نهاده از فروشگاه (فاکتور #${storeInvoiceNumber || orderId || 'آنلاین'})`,
+    description: `خریداری شده توسط ${owner ? owner.name : mobile} - اقلام: ${items.map((i: any) => `${i.name || i.productName} (${i.quantity || i.qty} ${i.unit || 'واحد'})`).join('، ')}`,
+    materialsUsed: items.map((i: any) => `${i.name || i.productName}: ${i.quantity || i.qty} ${i.unit || ''} (مبلغ: ${Number(i.price || 0).toLocaleString('fa-IR')} تومان)`).join('\n'),
+    cost: Number(totalAmount) || 0
+  };
+
+  localStore.operations = [operationRecord, ...(localStore.operations || [])];
+  saveLocalStore();
+
+  res.json({
+    success: true,
+    message: 'فاکتور خرید نهاده با موفقیت در ثبت هزینه‌های قطعه باغ پسته اعمال گردید.',
+    operationId: operationRecord.id,
+    landName: targetLand.name || targetLand.title
+  });
+});
+
+// 4. Products catalog endpoint for UI and testing
+app.get('/api/v1/store/products', (req, res) => {
+  res.json({
+    success: true,
+    total: standardStoreProducts.length,
+    products: standardStoreProducts
+  });
+});
+
+// 5. Generate SSO token & Redirect Cart Url
+app.post('/api/v1/integration/sso-token', (req, res) => {
+  const { mobile, name, landName, items } = req.body;
+  if (!mobile) {
+    return res.status(400).json({ error: 'شماره موبایل کاربر الزامی است.' });
+  }
+
+  const handoffToken = 'sso_' + Buffer.from(JSON.stringify({
+    mobile,
+    name: name || 'باغدار گرامی',
+    land: landName || 'باغ پسته',
+    timestamp: Date.now(),
+    items: items || []
+  })).toString('base64');
+
+  const storeRedirectUrl = `${storeApiUrl.replace(/\/+$/, '')}/checkout/sso-bridge?token=${handoffToken}`;
+
+  res.json({
+    success: true,
+    token: handoffToken,
+    redirectUrl: storeRedirectUrl
+  });
 });
 
 // Start Server
