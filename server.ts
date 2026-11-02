@@ -13,14 +13,16 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Detect if running from compiled dist/server.cjs or dev tsx server.ts
+const isInsideDist = path.basename(__dirname) === 'dist';
+const projectRoot = isInsideDist ? path.dirname(__dirname) : __dirname;
+const STORAGE_FILE = path.join(projectRoot, 'agri_storage.json');
+
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '50mb' }));
-
-// --- Persistent Local Database Store for Pistachio Management System ---
-const STORAGE_FILE = path.join(__dirname, 'agri_storage.json');
 
 interface AppDataStore {
   users: any[];
@@ -620,7 +622,7 @@ app.get('/api/lookups', (req, res) => res.json(localStore.lookups || defaultLook
 // cPanel MySQL Schema Download / View Endpoint
 app.get('/api/database/sql-schema', (req, res) => {
   try {
-    const schemaPath = path.join(__dirname, 'cpanel_schema.sql');
+    const schemaPath = path.join(projectRoot, 'cpanel_schema.sql');
     if (fs.existsSync(schemaPath)) {
       const sqlContent = fs.readFileSync(schemaPath, 'utf8');
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
@@ -675,14 +677,32 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(__dirname, 'dist');
+    const distPath = isInsideDist ? __dirname : path.join(projectRoot, 'dist');
+    console.log(`[AgriManage] Serving production static files from: ${distPath}`);
+
     if (fs.existsSync(distPath)) {
-      app.use(express.static(distPath));
+      app.use(express.static(distPath, {
+        index: 'index.html',
+        maxAge: '1d',
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css');
+          } else if (filePath.endsWith('.js') || filePath.endsWith('.cjs') || filePath.endsWith('.mjs')) {
+            res.setHeader('Content-Type', 'application/javascript');
+          }
+        }
+      }));
+
       app.get('*', (req, res, next) => {
         if (req.path.startsWith('/api')) {
           return next();
         }
-        res.sendFile(path.join(distPath, 'index.html'));
+        const indexHtml = path.join(distPath, 'index.html');
+        if (fs.existsSync(indexHtml)) {
+          res.sendFile(indexHtml);
+        } else {
+          res.status(404).send('فایل index.html در پوشه dist یافت نشد.');
+        }
       });
     } else {
       app.get('/', (req, res) => {

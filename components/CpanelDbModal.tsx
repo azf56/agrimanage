@@ -45,6 +45,7 @@ export const CpanelDbModal: React.FC<CpanelDbModalProps> = ({
   const [copiedActionYml, setCopiedActionYml] = useState(false);
   const [copiedHtaccess, setCopiedHtaccess] = useState(false);
   const [copiedNodeConfig, setCopiedNodeConfig] = useState(false);
+  const [copiedCloneFixCmd, setCopiedCloneFixCmd] = useState(false);
   const [loadingSql, setLoadingSql] = useState(false);
 
   // MySQL Test State
@@ -659,7 +660,7 @@ export const CpanelDbModal: React.FC<CpanelDbModalProps> = ({
                     <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-black flex items-center justify-center shrink-0 text-xs">
                       ۲
                     </div>
-                    <div className="space-y-1 flex-1">
+                    <div className="space-y-3 flex-1">
                       <div className="font-bold text-gray-900">ایجاد ریپازیتوری در cPanel (در پوشه repositories/agrimanage):</div>
                       <p className="text-gray-600 leading-relaxed font-medium">
                         در منوی <strong>Git™ Version Control</strong> در cPanel دکمه <strong>Create</strong> را بزنید:
@@ -669,6 +670,91 @@ export const CpanelDbModal: React.FC<CpanelDbModalProps> = ({
                         <li><strong>Repository Path:</strong> <code className="text-gray-900 font-bold font-mono dir-ltr">repositories/agrimanage</code></li>
                         <li><strong>Repository Name:</strong> <code className="text-gray-900 font-bold font-mono">agrimanage</code></li>
                       </ul>
+
+                      {/* Troubleshooting Banner for 'Initiated Clone Process' Silent Failure */}
+                      <div className="border-2 border-amber-300 bg-amber-50/70 rounded-2xl p-4 space-y-3 shadow-xs">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="p-1.5 bg-amber-200 text-amber-900 rounded-lg">
+                              <AlertCircle className="w-4 h-4" />
+                            </span>
+                            <div>
+                              <h5 className="text-xs font-black text-amber-950">
+                                عیب‌یابی خطای «The system successfully initiated the clone process...» و ساخته‌نشدن پوشه
+                              </h5>
+                              <span className="text-[10px] text-amber-800">چرا این پیام نمایش داده می‌شود اما مخزن کلون نمی‌شود؟</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const fixCmds = `# ۱. اعتبارسنجی اولیه کلید SSH و ثبت اثر انگشت گیت‌هاب (کلمه yes را تایپ کنید):\nssh -T git@github.com\n\n# ۲. حذف پوشه نیمه‌کاره احتمالی از تلاش‌های قبلی:\nrm -rf ~/repositories/agrimanage\n\n# ۳. کلون مستقیم و آنی مخزن بدون واسطه:\nmkdir -p ~/repositories\ngit clone git@github.com:YOUR_USER/agrimanage.git ~/repositories/agrimanage\n`;
+                              navigator.clipboard.writeText(fixCmds);
+                              setCopiedCloneFixCmd(true);
+                              setTimeout(() => setCopiedCloneFixCmd(false), 2500);
+                            }}
+                            className="px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg font-bold text-[11px] flex items-center gap-1 transition shadow-xs shrink-0"
+                          >
+                            {copiedCloneFixCmd ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                            {copiedCloneFixCmd ? 'فرمان‌ها کپی شد!' : 'کپی ۳ فرمان حل فوری در ترمینال'}
+                          </button>
+                        </div>
+
+                        <p className="text-[11px] text-amber-900 leading-relaxed font-medium">
+                          در cPanel وقتی روی <strong>Create</strong> کلیک می‌کنید، کلون گیت به صف پس‌زمینه (Background Queue) ارسال می‌شود. اگر خطایی رخ دهد، cPanel آن را در صفحه نشان نمی‌دهد و بدون هیچ خروجی متوقف می‌شود. شایع‌ترین دلایل:
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                          <div className="bg-white/90 p-2.5 rounded-xl border border-amber-200 space-y-1">
+                            <strong className="text-amber-950 block">۱. پرسش اثر انگشت گیت‌هاب (Known Hosts):</strong>
+                            <p className="text-gray-600 text-[10px] leading-relaxed">
+                              در نخستین اتصال SSH، سرور پیام <code className="dir-ltr text-[10px]">Are you sure you want to continue (yes/no)?</code> می‌پرسد. فرآیند پس‌زمینه چون محیط تعاملی ندارد، متوقف و منهدم می‌شود.
+                            </p>
+                          </div>
+                          <div className="bg-white/90 p-2.5 rounded-xl border border-amber-200 space-y-1">
+                            <strong className="text-amber-950 block">۲. مجاز نشدن کلید (Authorize):</strong>
+                            <p className="text-gray-600 text-[10px] leading-relaxed">
+                              در cPanel &larr; SSH Access، حتماً روی دکمه <strong>Authorize</strong> کلید ساخته‌شده کلیک کنید؛ در غیر اینصورت کلید شما بلاک است.
+                            </p>
+                          </div>
+                          <div className="bg-white/90 p-2.5 rounded-xl border border-amber-200 space-y-1">
+                            <strong className="text-amber-950 block">۳. وجود پوشه خالی یا نیمه‌کاره:</strong>
+                            <p className="text-gray-600 text-[10px] leading-relaxed">
+                              اگر از قبل پوشه‌ای به نام <code className="font-mono text-[10px]">repositories/agrimanage</code> ایجاد شده باشد، گیت کلون را لغو می‌کند.
+                            </p>
+                          </div>
+                          <div className="bg-white/90 p-2.5 rounded-xl border border-amber-200 space-y-1">
+                            <strong className="text-amber-950 block">۴. عدم ثبت Deploy Key در گیت‌هاب:</strong>
+                            <p className="text-gray-600 text-[10px] leading-relaxed">
+                              باید Public Key کلید cPanel در گیت‌هاب &larr; Settings &larr; Deploy Keys ثبت شده باشد.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Fast Terminal Solution */}
+                        <div className="space-y-1.5 pt-1">
+                          <span className="text-[11px] font-bold text-amber-950 flex items-center gap-1.5">
+                            <Terminal className="w-3.5 h-3.5 text-amber-800" />
+                            راه‌حل قطعی ۲ دقیقه‌ای (اجرا در منوی Terminal سی‌پنل):
+                          </span>
+                          <pre className="p-3 bg-slate-900 text-amber-300 rounded-xl font-mono text-[11px] dir-ltr text-left overflow-x-auto border border-slate-800">
+{`# گام ۱: تایید اثر انگشت GitHub (اگر سوالی پرسید کلمه yes را بنویسید و اینتر بزنید)
+ssh -T git@github.com
+
+# گام ۲: پاکسازی پوشه قبلی در صورت وجود
+rm -rf ~/repositories/agrimanage
+
+# گام ۳: کلون مستقیم پروژه در مسیر استاندارد
+mkdir -p ~/repositories
+git clone git@github.com:YOUR_GITHUB_USER/agrimanage.git ~/repositories/agrimanage`}
+                          </pre>
+                          <p className="text-[10px] text-gray-500">
+                            * پس از کلون در ترمینال، اگر به منوی Git™ Version Control در cPanel برگردید، مخزن در لیست ظاهر می‌شود یا با وارد کردن مسیر <code className="font-mono">repositories/agrimanage</code> بدون زدن تیک Clone به سرعت شناسایی می‌شود.
+                          </p>
+                          <p className="text-[10px] text-gray-500">
+                            * برای دیدن متن دقیق خطای cPanel می‌توانید لاگ‌های ذخیره‌شده را در مسیر <code className="font-mono text-slate-700">~/.cpanel/logs/vc_*</code> در File Manager مشاهده کنید.
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -776,6 +862,43 @@ deployment:
                     <li>در cPanel وارد <strong>FTP Accounts</strong> شوید و یک اکانت FTP برای دامنه <code className="font-mono">avinia.ir</code> با دسترسی به همان پوشه بسازید.</li>
                     <li>در GitHub به <strong>Settings &larr; Secrets and variables &larr; Actions</strong> بروید و ۳ مقدار <code className="font-mono">CPANEL_FTP_SERVER</code>، <code className="font-mono">CPANEL_FTP_USERNAME</code> و <code className="font-mono">CPANEL_FTP_PASSWORD</code> را تعریف کنید.</li>
                   </ol>
+                </div>
+              </div>
+
+              {/* Troubleshooting Card for MODULE_NOT_FOUND & 403 Assets */}
+              <div className="border border-rose-300 bg-rose-50/70 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="bg-rose-600 text-white text-xs px-2.5 py-0.5 rounded-full font-bold">رفع خطاهای رایج هاست (تضمینی)</span>
+                  <h4 className="text-xs font-black text-rose-950">حل خطای «Cannot find module dist/server.cjs» و خطای «403 Forbidden / MIME type»</h4>
+                </div>
+                <div className="text-xs text-rose-950 space-y-2">
+                  <p className="leading-relaxed">
+                    <strong>علت خطای ۱ (Cannot find module):</strong> نودجی‌اس به دنبال فایل بیلدشده <code className="bg-white px-1.5 py-0.5 rounded font-mono text-rose-800">dist/server.cjs</code> می‌گردد اما هنوز دستور <code className="bg-white px-1.5 py-0.5 rounded font-mono">npm run build</code> در پوشه پروژه اجرا نشده است. همچنین می‌توانید فایل آغازین (Startup File) را در cPanel برابر <code className="bg-white px-1.5 py-0.5 rounded font-mono text-emerald-800 font-bold">app.js</code> بگذارید.
+                  </p>
+                  <p className="leading-relaxed">
+                    <strong>علت خطای ۲ (403 Forbidden و MIME Type):</strong> دسترسی پوشه <code className="bg-white px-1.5 py-0.5 rounded font-mono">assets</code> یا فایل‌های آن بعد از آپلود یا اکسترکت روی <code className="bg-white px-1.5 py-0.5 rounded font-mono">600</code> یا <code className="bg-white px-1.5 py-0.5 rounded font-mono">700</code> مانده است که وب‌سرور لایت‌اسپید مانع دانلود آن می‌شود.
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[11px] font-bold text-rose-900 flex items-center gap-1.5">
+                    <Terminal className="w-3.5 h-3.5 text-rose-700" />
+                    دستور ۳۰ ثانیه‌ای حل کامل هر دو خطا در Terminal سی‌پنل:
+                  </span>
+                  <pre className="p-3 bg-slate-900 text-rose-300 rounded-xl font-mono text-[11px] dir-ltr text-left overflow-x-auto border border-slate-800">
+{`# ۱. رفتن به پوشه و بیلد کامل فرانت‌اند و بک‌اند
+cd ~/repositories/agrimanage
+npm install
+npm run build
+
+# ۲. اصلاح پرمیشن‌ها (پوشه‌ها 755 و فایل‌ها 644) جهت رفع خطای 403
+chmod 755 ~/repositories/agrimanage
+chmod -R 755 ~/repositories/agrimanage/dist
+find ~/repositories/agrimanage/dist -type f -exec chmod 644 {} +
+
+# ۳. اگر فایل‌ها در public_html/avinia.ir کپی شده‌اند:
+chmod -R 755 ~/public_html/avinia.ir/assets 2>/dev/null || true
+find ~/public_html/avinia.ir -type f -exec chmod 644 {} + 2>/dev/null || true`}
+                  </pre>
                 </div>
               </div>
 
