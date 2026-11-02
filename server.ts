@@ -706,8 +706,9 @@ async function startServer() {
         }
       }));
 
-      app.get('*', (req, res, next) => {
-        if (req.path.startsWith('/api')) {
+      // SPA fallback middleware compatible with Express 4 and Express 5 (prevents path-to-regexp wildcard syntax error)
+      app.use((req, res, next) => {
+        if (req.method !== 'GET' || req.path.startsWith('/api')) {
           return next();
         }
         const indexHtml = path.join(distPath, 'index.html');
