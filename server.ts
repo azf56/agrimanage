@@ -10,12 +10,25 @@ import { defaultLookupItems } from './defaultLookups';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Safe directory resolution for both CommonJS (LiteSpeed lsnode.js / dist/server.cjs) and ESM/tsx dev
+const getDirname = (): string => {
+  if (typeof __dirname !== 'undefined' && __dirname) {
+    return __dirname;
+  }
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.url) {
+      return path.dirname(fileURLToPath(import.meta.url));
+    }
+  } catch {
+    // fallback if import.meta.url is invalid
+  }
+  return process.cwd();
+};
 
+const appDir = getDirname();
 // Detect if running from compiled dist/server.cjs or dev tsx server.ts
-const isInsideDist = path.basename(__dirname) === 'dist';
-const projectRoot = isInsideDist ? path.dirname(__dirname) : __dirname;
+const isInsideDist = path.basename(appDir) === 'dist';
+const projectRoot = isInsideDist ? path.dirname(appDir) : appDir;
 const STORAGE_FILE = path.join(projectRoot, 'agri_storage.json');
 
 const app = express();
@@ -677,7 +690,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = isInsideDist ? __dirname : path.join(projectRoot, 'dist');
+    const distPath = isInsideDist ? appDir : path.join(projectRoot, 'dist');
     console.log(`[AgriManage] Serving production static files from: ${distPath}`);
 
     if (fs.existsSync(distPath)) {
