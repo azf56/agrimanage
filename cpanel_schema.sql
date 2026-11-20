@@ -8,6 +8,7 @@
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 SET time_zone = "+03:30";
+SET NAMES utf8mb4 COLLATE utf8mb4_persian_ci;
 
 -- ایجاد دیتابیس در صورت نیاز (روی هاست cPanel معمولاً دیتابیس از پنل ساخته می‌شود)
 -- CREATE DATABASE IF NOT EXISTS `agrimanage_pistachio` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_persian_ci;
@@ -26,9 +27,11 @@ CREATE TABLE IF NOT EXISTS `users` (
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `idx_user_role` (`role`),
-  KEY `idx_user_username` (`username`)
+  KEY `idx_user_username` (`username`),
+  KEY `idx_users_updated_at` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_persian_ci;
 
 -- درج کاربران اولیه سامانه
@@ -52,8 +55,10 @@ CREATE TABLE IF NOT EXISTS `owners` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
+  `version` INT NOT NULL DEFAULT 1,
   PRIMARY KEY (`id`),
-  KEY `idx_owner_mobile` (`mobile`)
+  KEY `idx_owner_mobile` (`mobile`),
+  KEY `idx_owners_updated_at` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_persian_ci;
 
 -- --------------------------------------------------------
@@ -71,7 +76,9 @@ CREATE TABLE IF NOT EXISTS `water_sources` (
   `longitude` DECIMAL(10,7) DEFAULT NULL,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id`)
+  `version` INT NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  KEY `idx_water_sources_updated_at` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_persian_ci;
 
 -- --------------------------------------------------------
@@ -92,9 +99,11 @@ CREATE TABLE IF NOT EXISTS `lands` (
   `longitude` DECIMAL(10,7) DEFAULT NULL,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
+  `version` INT NOT NULL DEFAULT 1,
   PRIMARY KEY (`id`),
   KEY `idx_land_owner` (`owner_id`),
-  KEY `idx_land_water` (`water_source_id`)
+  KEY `idx_land_water` (`water_source_id`),
+  KEY `idx_lands_updated_at` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_persian_ci;
 
 -- --------------------------------------------------------
@@ -147,9 +156,11 @@ CREATE TABLE IF NOT EXISTS `visits` (
   `created_offline` TINYINT(1) NOT NULL DEFAULT 0,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
+  `version` INT NOT NULL DEFAULT 1,
   PRIMARY KEY (`id`),
   KEY `idx_visit_land` (`land_id`),
-  KEY `idx_visit_date` (`visit_date`)
+  KEY `idx_visit_date` (`visit_date`),
+  KEY `idx_visits_updated_at` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_persian_ci;
 
 -- --------------------------------------------------------
@@ -177,10 +188,12 @@ CREATE TABLE IF NOT EXISTS `tasks` (
   `confirmed_at` VARCHAR(12) DEFAULT NULL,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
+  `version` INT NOT NULL DEFAULT 1,
   PRIMARY KEY (`id`),
   KEY `idx_task_land` (`land_id`),
   KEY `idx_task_visit` (`visit_id`),
-  KEY `idx_task_status` (`farmer_done`, `is_confirmed`)
+  KEY `idx_task_status` (`farmer_done`, `is_confirmed`),
+  KEY `idx_tasks_updated_at` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_persian_ci;
 
 -- --------------------------------------------------------
@@ -205,8 +218,10 @@ CREATE TABLE IF NOT EXISTS `lab_analyses` (
   `leaf_interpretation` TEXT DEFAULT NULL,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
+  `version` INT NOT NULL DEFAULT 1,
   PRIMARY KEY (`id`),
-  KEY `idx_lab_land` (`land_id`)
+  KEY `idx_lab_land` (`land_id`),
+  KEY `idx_lab_analyses_updated_at` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_persian_ci;
 
 -- --------------------------------------------------------
@@ -221,8 +236,11 @@ CREATE TABLE IF NOT EXISTS `messages` (
   `text` TEXT NOT NULL,
   `created_at` VARCHAR(25) NOT NULL,
   `is_read` TINYINT(1) NOT NULL DEFAULT 0,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
-  KEY `idx_msg_owner` (`owner_id`)
+  KEY `idx_msg_owner` (`owner_id`),
+  KEY `idx_messages_updated_at` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_persian_ci;
 
 -- --------------------------------------------------------
@@ -240,8 +258,10 @@ CREATE TABLE IF NOT EXISTS `lookups` (
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `display_order` INT(4) DEFAULT 0,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
-  KEY `idx_lookup_cat` (`category`)
+  KEY `idx_lookup_cat` (`category`),
+  KEY `idx_lookups_updated_at` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_persian_ci;
 
 -- --------------------------------------------------------
