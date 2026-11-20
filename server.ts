@@ -1,6 +1,8 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import { createClient } from '@supabase/supabase-js';
+import mysql from 'mysql2/promise';
+import type { Pool, RowDataPacket } from 'mysql2/promise';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -349,6 +351,716 @@ function saveLocalStore() {
 // Initialize on startup
 loadLocalStore();
 
+// =========================================================================
+// اتصال واقعی به پایگاه‌داده MySQL با Connection Pool و Fallback خودکار به JSON
+// =========================================================================
+
+interface ColumnMeta {
+  dataType: string;
+  isNullable: boolean;
+  columnDefault: string | null;
+}
+
+// جدول‌های مجاز جهت جلوگیری از SQL Injection
+const MYSQL_CORE_TABLES: ReadonlyArray<keyof AppDataStore> = [
+  'users',
+  'owners',
+  'water_sources',
+  'lands',
+  'visits',
+  'lab_analyses',
+  'tasks',
+  'messages',
+  'lookups',
+  'operations',
+  'products',
+  'op_types',
+  'consultations'
+];
+
+// ستون‌های بولی که در MySQL به صورت TINYINT(1) ذخیره می‌شوند
+const BOOLEAN_COLUMNS = new Set([
+  'is_active',
+  'is_deleted',
+  'lab_sample_taken',
+  'is_approved',
+  'created_offline',
+  'farmer_done',
+  'is_confirmed',
+  'is_read'
+]);
+
+// ستون‌های عددی که خروجی DECIMAL در mysql2 به صورت رشته برمی‌گرداند
+const NUMERIC_COLUMNS = new Set([
+  'area_hectares',
+  'well_depth',
+  'planting_year',
+  'temperature',
+  'humidity',
+  'wind_speed',
+  'visit_duration_min',
+  'photos_taken',
+  'soil_ec',
+  'soil_ph',
+  'soil_tnv',
+  'soil_oc',
+  'soil_sar',
+  'leaf_n',
+  'leaf_p',
+  'leaf_ref_k',
+  'leaf_fe',
+  'leaf_zn',
+  'leaf_b',
+  'display_order',
+  'version',
+  'cost'
+]);
+
+let mysqlPool: Pool | null = null;
+let isMySQLConnected = false;
+let mysqlLastError: string | null = null;
+const dbSchemaCache = new Map<string, Map<string, ColumnMeta>>();
+
+// تبدیل ارقام فارسی/عربی به انگلیسی برای فیلدهای عددی MySQL
+function toEnglishDigits(value: string): string {
+  return value
+    .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
+    .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
+}
+
+// تبدیل camelCase به snake_case (سازگار با ورودی‌های از پیش snake_case)
+function toSnakeCase(key: string): string {
+  return key.replace(/([A-Z])/g, '_$1').toLowerCase();
+}
+
+// تبدیل snake_case به camelCase
+function toCamelCase(key: string): string {
+  return key.replace(/_([a-z0-9])/g, (_, ch: string) => ch.toUpperCase());
+}
+
+// فرمت تاریخ برای ستون‌های TIMESTAMP / DATETIME در MySQL
+function formatMySQLTimestamp(value: unknown): string | null {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 19).replace('T', ' ');
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(trimmed)) {
+      return trimmed.slice(0, 19).replace('T', ' ');
+    }
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime()) && /^\d{4}-/.test(trimmed)) {
+      return parsed.toISOString().slice(0, 19).replace('T', ' ');
+    }
+  }
+  return null;
+}
+
+// بررسی ساختار جداول موجود در MySQL و افزودن خودکار ستون‌های Soft Delete و Version در صورت نبود
+async function loadAndEnsureMySQLSchema(pool: Pool): Promise<void> {
+  const fetchColumns = async () => {
+    dbSchemaCache.clear();
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()`
+    );
+    for (const row of rows) {
+      const tableName = String(row.TABLE_NAME);
+      if (!dbSchemaCache.has(tableName)) {
+        dbSchemaCache.set(tableName, new Map());
+      }
+      dbSchemaCache.get(tableName)!.set(String(row.COLUMN_NAME), {
+        dataType: String(row.DATA_TYPE).toLowerCase(),
+        isNullable: String(row.IS_NULLABLE).toUpperCase() === 'YES',
+        columnDefault: row.COLUMN_DEFAULT !== null && row.COLUMN_DEFAULT !== undefined ? String(row.COLUMN_DEFAULT) : null
+      });
+    }
+  };
+
+  await fetchColumns();
+
+  // اطمینان از وجود ستون‌های is_deleted، version و updated_at روی جداول اصلی موجود
+  let schemaAltered = false;
+  for (const table of MYSQL_CORE_TABLES) {
+    const cols = dbSchemaCache.get(table);
+    if (!cols) continue;
+
+    if (!cols.has('is_deleted')) {
+      try {
+        await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN \`is_deleted\` TINYINT(1) NOT NULL DEFAULT 0`);
+        schemaAltered = true;
+      } catch (err: any) {
+        console.warn(`[MySQL] عدم امکان افزودن ستون is_deleted به جدول ${table}:`, err?.message);
+      }
+    }
+
+    if (!cols.has('version')) {
+      try {
+        await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN \`version\` INT NOT NULL DEFAULT 1`);
+        schemaAltered = true;
+      } catch (err: any) {
+        console.warn(`[MySQL] عدم امکان افزودن ستون version به جدول ${table}:`, err?.message);
+      }
+    }
+
+    if (!cols.has('updated_at')) {
+      try {
+        await pool.query(
+          `ALTER TABLE \`${table}\` ADD COLUMN \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`
+        );
+        schemaAltered = true;
+      } catch (err: any) {
+        console.warn(`[MySQL] عدم امکان افزودن ستون updated_at به جدول ${table}:`, err?.message);
+      }
+    }
+  }
+
+  if (schemaAltered) {
+    await fetchColumns();
+  }
+}
+
+// راه‌اندازی Connection Pool دیتابیس MySQL با Fallback امن به فایل JSON
+async function initMySQL(): Promise<boolean> {
+  const host = process.env.MYSQL_HOST?.trim();
+  const database = process.env.MYSQL_DATABASE?.trim();
+  const user = process.env.MYSQL_USER?.trim();
+  const password = process.env.MYSQL_PASSWORD ?? '';
+  const port = process.env.MYSQL_PORT ? parseInt(process.env.MYSQL_PORT, 10) : 3306;
+
+  if (!host || !database || !user) {
+    isMySQLConnected = false;
+    mysqlLastError = 'متغیرهای محیطی MySQL تنظیم نشده‌اند (حالت Fallback به JSON فعال است).';
+    console.log('[AgriManage] متغیرهای MYSQL تنظیم نشده‌اند؛ سامانه از ذخیره‌ساز JSON (agri_storage.json) استفاده می‌کند.');
+    return false;
+  }
+
+  try {
+    const pool = mysql.createPool({
+      host,
+      port: Number.isFinite(port) ? port : 3306,
+      database,
+      user,
+      password,
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+      charset: 'utf8mb4',
+      connectTimeout: 5000,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000
+    });
+
+    // تست واقعی اتصال
+    const conn = await pool.getConnection();
+    await conn.ping();
+    conn.release();
+
+    await loadAndEnsureMySQLSchema(pool);
+
+    mysqlPool = pool;
+    isMySQLConnected = true;
+    mysqlLastError = null;
+    console.log(`[AgriManage] اتصال به پایگاه‌داده MySQL (${database}@${host}:${port}) با موفقیت برقرار شد.`);
+    return true;
+  } catch (err: any) {
+    isMySQLConnected = false;
+    mysqlLastError = err?.message || 'خطا در برقراری ارتباط با MySQL';
+    if (mysqlPool) {
+      try {
+        await mysqlPool.end();
+      } catch {
+        // ignore close errors
+      }
+      mysqlPool = null;
+    }
+    console.warn(`[AgriManage] اتصال به MySQL ناموفق بود (${mysqlLastError})؛ Fallback خودکار به agri_storage.json فعال شد.`);
+    return false;
+  }
+}
+
+// بررسی اینکه آیا جدول مورد نظر در MySQL در دسترس است یا خیر
+function canUseMySQLForTable(table: keyof AppDataStore): boolean {
+  return Boolean(isMySQLConnected && mysqlPool && dbSchemaCache.has(table));
+}
+
+// نگاشت نام فیلد ورودی (camelCase یا snake_case) به نام ستون واقعی MySQL
+function resolveDbColumnName(table: keyof AppDataStore, rawKey: string, cols: Map<string, ColumnMeta>): string | null {
+  if (cols.has(rawKey)) return rawKey;
+
+  // نگاشت‌های خاص جهت سازگاری کامل بین فرانت‌اند و اسکیمای MySQL
+  if (table === 'lookups' && (rawKey === 'order' || rawKey === 'displayOrder')) {
+    return cols.has('display_order') ? 'display_order' : null;
+  }
+  if ((table === 'users' || table === 'lands') && rawKey === 'farmerId') {
+    return cols.has('owner_id') ? 'owner_id' : null;
+  }
+  if (table === 'lands' && rawKey === 'area') {
+    return cols.has('area_hectares') ? 'area_hectares' : null;
+  }
+
+  const snake = toSnakeCase(rawKey);
+  if (cols.has(snake)) return snake;
+
+  return null;
+}
+
+// پاکسازی و تطبیق نوع داده مقدار ورودی با نوع ستون در MySQL
+function coerceValueForColumn(colName: string, rawValue: any, meta: ColumnMeta): any {
+  if (rawValue === undefined) return undefined;
+  if (rawValue === null) return null;
+
+  if (BOOLEAN_COLUMNS.has(colName)) {
+    if (typeof rawValue === 'boolean') return rawValue ? 1 : 0;
+    if (typeof rawValue === 'number') return rawValue ? 1 : 0;
+    if (typeof rawValue === 'string') {
+      const lower = rawValue.trim().toLowerCase();
+      return lower === '1' || lower === 'true' ? 1 : 0;
+    }
+    return 0;
+  }
+
+  if (meta.dataType === 'timestamp' || meta.dataType === 'datetime') {
+    return formatMySQLTimestamp(rawValue);
+  }
+
+  if (['int', 'tinyint', 'smallint', 'mediumint', 'bigint'].includes(meta.dataType)) {
+    if (rawValue === '') return null;
+    const cleaned = typeof rawValue === 'string' ? toEnglishDigits(rawValue).trim() : rawValue;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? Math.round(num) : null;
+  }
+
+  if (['decimal', 'float', 'double'].includes(meta.dataType)) {
+    if (rawValue === '') return null;
+    const cleaned = typeof rawValue === 'string' ? toEnglishDigits(rawValue).trim() : rawValue;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
+
+  if (typeof rawValue === 'object') {
+    return JSON.stringify(rawValue);
+  }
+
+  return String(rawValue);
+}
+
+// تبدیل ردیف MySQL (snake_case) به آبجکت سازگار با فرانت‌اند (camelCase)
+function mapDbRowToClientRecord(table: keyof AppDataStore, row: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {};
+
+  for (const [col, val] of Object.entries(row)) {
+    if (col === 'is_deleted') {
+      continue;
+    }
+
+    const camelKey = table === 'lookups' && col === 'display_order' ? 'order' : toCamelCase(col);
+
+    if (val === null || val === undefined) {
+      continue;
+    }
+
+    if (BOOLEAN_COLUMNS.has(col)) {
+      result[camelKey] = Boolean(Number(val));
+    } else if (NUMERIC_COLUMNS.has(col)) {
+      const num = Number(val);
+      result[camelKey] = Number.isFinite(num) ? num : val;
+    } else if (val instanceof Date) {
+      result[camelKey] = val.toISOString();
+    } else if (col === 'latitude' || col === 'longitude') {
+      result[camelKey] = String(val);
+    } else {
+      result[camelKey] = val;
+    }
+  }
+
+  // حفظ سازگاری با فیلدهای معادل در رابط کاربری
+  if (table === 'lands' && !result.title && result.name) {
+    result.title = result.name;
+  }
+  if (table === 'users' && result.ownerId && !result.farmerId) {
+    result.farmerId = result.ownerId;
+  }
+
+  return result;
+}
+
+// تبدیل رکورد ورودی (camelCase یا snake_case) به ستون‌های معتبر MySQL
+function mapRecordToDbColumns(
+  table: keyof AppDataStore,
+  record: Record<string, any>,
+  isInsert: boolean
+): Record<string, any> {
+  const cols = dbSchemaCache.get(table);
+  if (!cols) return {};
+
+  const dbPayload: Record<string, any> = {};
+
+  for (const [rawKey, rawVal] of Object.entries(record || {})) {
+    const colName = resolveDbColumnName(table, rawKey, cols);
+    if (!colName) continue;
+    // ستون‌های سیستمی جداگانه مدیریت می‌شوند
+    if (colName === 'updated_at') continue;
+
+    const meta = cols.get(colName)!;
+    const coerced = coerceValueForColumn(colName, rawVal, meta);
+
+    // در صورت نامعتبر بودن تاریخ برای ستون TIMESTAMP، اجازه می‌دهیم MySQL مقدار پیش‌فرض بگذارد
+    if ((meta.dataType === 'timestamp' || meta.dataType === 'datetime') && coerced === null) {
+      continue;
+    }
+    if (coerced !== undefined) {
+      dbPayload[colName] = coerced;
+    }
+  }
+
+  // تکمیل مقادیر اجباری (NOT NULL بدون پیش‌فرض) در حالت درج جدید
+  if (isInsert) {
+    for (const [colName, meta] of cols.entries()) {
+      if (colName === 'id' || colName === 'updated_at' || colName === 'is_deleted' || colName === 'version') {
+        continue;
+      }
+      if (!meta.isNullable && meta.columnDefault === null && (dbPayload[colName] === undefined || dbPayload[colName] === null)) {
+        if (['varchar', 'text', 'char'].includes(meta.dataType)) {
+          dbPayload[colName] = '';
+        } else if (['int', 'tinyint', 'smallint', 'mediumint', 'bigint', 'decimal', 'float', 'double'].includes(meta.dataType)) {
+          dbPayload[colName] = 0;
+        }
+      }
+    }
+  }
+
+  return dbPayload;
+}
+
+// فیلتر رکوردهای فعال (حذف‌نشده) در حالت JSON Fallback
+function filterActiveJsonRecords(records: any[]): any[] {
+  return (records || []).filter((r: any) => r && r.isDeleted !== true && Number(r.is_deleted) !== 1);
+}
+
+// نرمال‌سازی کلیدهای snake_case به camelCase برای ذخیره یکپارچه در JSON Fallback
+function normalizeRecordKeysForJson(table: keyof AppDataStore, data: Record<string, any>): Record<string, any> {
+  const normalized: Record<string, any> = {};
+  for (const [key, val] of Object.entries(data || {})) {
+    if (table === 'lookups' && key === 'display_order') {
+      normalized.order = val;
+    } else if (key.includes('_') && key !== 'is_deleted' && key !== 'updated_at') {
+      normalized[toCamelCase(key)] = val;
+    } else {
+      normalized[key] = val;
+    }
+  }
+  return normalized;
+}
+
+// --- توابع لایه دسترسی به داده (MySQL با Fallback خودکار به JSON) ---
+
+// خواندن تمام رکوردهای فعال یک جدول (با فیلتر Soft Delete و پشتیبانی اختیاری از since)
+async function getTableRows(table: keyof AppDataStore, since?: string): Promise<any[]> {
+  if (canUseMySQLForTable(table) && mysqlPool) {
+    try {
+      const cols = dbSchemaCache.get(table)!;
+      const conditions: string[] = [];
+      const params: any[] = [];
+
+      if (cols.has('is_deleted')) {
+        conditions.push('COALESCE(`is_deleted`, 0) = 0');
+      }
+      if (since && cols.has('updated_at')) {
+        const formattedSince = formatMySQLTimestamp(since);
+        if (formattedSince) {
+          conditions.push('`updated_at` >= ?');
+          params.push(formattedSince);
+        }
+      }
+
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      const orderClause = cols.has('display_order') ? 'ORDER BY `display_order` ASC' : '';
+      const [rows] = await mysqlPool.query<RowDataPacket[]>(
+        `SELECT * FROM \`${table}\` ${whereClause} ${orderClause}`,
+        params
+      );
+      return rows.map((row) => mapDbRowToClientRecord(table, row));
+    } catch (err: any) {
+      console.warn(`[MySQL] خطا در خواندن جدول ${table}؛ بازگشت به JSON:`, err?.message);
+    }
+  }
+
+  return filterActiveJsonRecords((localStore as any)[table] || (defaultData as any)[table] || []);
+}
+
+// درج یا به‌روزرسانی رکورد (با مدیریت خودکار updated_at و version)
+async function upsertTableRecord(
+  table: keyof AppDataStore,
+  action: 'insert' | 'update',
+  recordId: string,
+  rawData: Record<string, any>
+): Promise<{ id: string; version: number; updatedAt: string }> {
+  const id = String(recordId || rawData?.id || Math.random().toString(36).substring(2, 11));
+  const nowIso = new Date().toISOString();
+
+  if (canUseMySQLForTable(table) && mysqlPool) {
+    try {
+      const cols = dbSchemaCache.get(table)!;
+      const hasVersion = cols.has('version');
+      const hasUpdatedAt = cols.has('updated_at');
+      const hasIsDeleted = cols.has('is_deleted');
+
+      const [existingRows] = await mysqlPool.query<RowDataPacket[]>(
+        hasVersion
+          ? `SELECT \`id\`, \`version\` FROM \`${table}\` WHERE \`id\` = ? LIMIT 1`
+          : `SELECT \`id\` FROM \`${table}\` WHERE \`id\` = ? LIMIT 1`,
+        [id]
+      );
+
+      const exists = existingRows.length > 0;
+
+      if (exists && action === 'update') {
+        const currentVersion = hasVersion ? Number(existingRows[0].version) || 1 : 1;
+        const dbPayload = mapRecordToDbColumns(table, rawData, false);
+        delete dbPayload.id;
+        delete dbPayload.version;
+        delete dbPayload.is_deleted;
+
+        const setParts: string[] = [];
+        const params: any[] = [];
+
+        for (const [col, val] of Object.entries(dbPayload)) {
+          setParts.push(`\`${col}\` = ?`);
+          params.push(val);
+        }
+
+        if (hasIsDeleted) {
+          setParts.push('`is_deleted` = 0');
+        }
+        if (hasUpdatedAt) {
+          setParts.push('`updated_at` = CURRENT_TIMESTAMP');
+        }
+        if (hasVersion) {
+          setParts.push('`version` = COALESCE(`version`, 1) + 1');
+        }
+
+        if (setParts.length > 0) {
+          params.push(id);
+          await mysqlPool.query(`UPDATE \`${table}\` SET ${setParts.join(', ')} WHERE \`id\` = ?`, params);
+        }
+
+        return { id, version: currentVersion + 1, updatedAt: nowIso };
+      }
+
+      // حالت insert یا upsert (اگر در حالت update رکورد هنوز در دیتابیس نباشد)
+      const dbPayload = mapRecordToDbColumns(table, { ...rawData, id }, true);
+      dbPayload.id = id;
+      if (hasIsDeleted) {
+        dbPayload.is_deleted = 0;
+      }
+      if (hasVersion) {
+        dbPayload.version = Number(rawData?.version) > 0 ? Number(rawData.version) : 1;
+      }
+
+      const colNames = Object.keys(dbPayload);
+      const placeholders = colNames.map(() => '?').join(', ');
+      const values = colNames.map((c) => dbPayload[c]);
+
+      const updateParts: string[] = [];
+      for (const col of colNames) {
+        if (col === 'id' || col === 'version' || col === 'is_deleted') continue;
+        if (col === 'created_at' && cols.get(col)?.dataType === 'timestamp') continue;
+        updateParts.push(`\`${col}\` = VALUES(\`${col}\`)`);
+      }
+      if (hasIsDeleted) {
+        updateParts.push('`is_deleted` = 0');
+      }
+      if (hasUpdatedAt) {
+        updateParts.push('`updated_at` = CURRENT_TIMESTAMP');
+      }
+      if (hasVersion) {
+        updateParts.push('`version` = COALESCE(`version`, 1) + 1');
+      }
+
+      const sql = `INSERT INTO \`${table}\` (${colNames.map((c) => `\`${c}\``).join(', ')})
+                   VALUES (${placeholders})
+                   ON DUPLICATE KEY UPDATE ${updateParts.join(', ')}`;
+
+      await mysqlPool.query(sql, values);
+      const nextVersion = exists ? (Number(existingRows[0].version) || 1) + 1 : (Number(dbPayload.version) || 1);
+      return { id, version: nextVersion, updatedAt: nowIso };
+    } catch (err: any) {
+      console.warn(`[MySQL] خطا در ذخیره رکورد در جدول ${table}؛ بازگشت به JSON:`, err?.message);
+    }
+  }
+
+  // Fallback به فایل JSON با مدیریت version، updatedAt و is_deleted
+  const normalizedData = normalizeRecordKeysForJson(table, rawData);
+  const tableArray: any[] = Array.isArray((localStore as any)[table]) ? [...(localStore as any)[table]] : [];
+  const idx = tableArray.findIndex((r: any) => String(r.id) === id);
+
+  let nextVersion = 1;
+  if (idx >= 0) {
+    nextVersion = (Number(tableArray[idx].version) || 1) + 1;
+    tableArray[idx] = {
+      ...tableArray[idx],
+      ...normalizedData,
+      id,
+      isDeleted: false,
+      is_deleted: 0,
+      version: nextVersion,
+      updatedAt: nowIso
+    };
+  } else {
+    nextVersion = Number(normalizedData.version) > 0 ? Number(normalizedData.version) : 1;
+    tableArray.unshift({
+      ...normalizedData,
+      id,
+      isDeleted: false,
+      is_deleted: 0,
+      version: nextVersion,
+      updatedAt: nowIso
+    });
+  }
+
+  (localStore as any)[table] = tableArray;
+  saveLocalStore();
+  return { id, version: nextVersion, updatedAt: nowIso };
+}
+
+// حذف نرم رکورد (Soft Delete: تنظیم is_deleted = 1 و بروزرسانی updated_at و version)
+async function softDeleteTableRecord(table: keyof AppDataStore, recordId: string): Promise<boolean> {
+  const id = String(recordId);
+  const nowIso = new Date().toISOString();
+
+  if (canUseMySQLForTable(table) && mysqlPool) {
+    try {
+      const cols = dbSchemaCache.get(table)!;
+      const setParts: string[] = [];
+
+      if (cols.has('is_deleted')) {
+        setParts.push('`is_deleted` = 1');
+      } else if (cols.has('is_active')) {
+        setParts.push('`is_active` = 0');
+      }
+      if (cols.has('updated_at')) {
+        setParts.push('`updated_at` = CURRENT_TIMESTAMP');
+      }
+      if (cols.has('version')) {
+        setParts.push('`version` = COALESCE(`version`, 1) + 1');
+      }
+
+      if (setParts.length > 0) {
+        await mysqlPool.query(`UPDATE \`${table}\` SET ${setParts.join(', ')} WHERE \`id\` = ?`, [id]);
+      } else {
+        await mysqlPool.query(`DELETE FROM \`${table}\` WHERE \`id\` = ?`, [id]);
+      }
+      return true;
+    } catch (err: any) {
+      console.warn(`[MySQL] خطا در حذف نرم رکورد از جدول ${table}؛ بازگشت به JSON:`, err?.message);
+    }
+  }
+
+  // Fallback به Soft Delete روی JSON
+  const tableArray: any[] = Array.isArray((localStore as any)[table]) ? [...(localStore as any)[table]] : [];
+  (localStore as any)[table] = tableArray.map((r: any) =>
+    String(r.id) === id
+      ? {
+          ...r,
+          isDeleted: true,
+          is_deleted: 1,
+          version: (Number(r.version) || 1) + 1,
+          updatedAt: nowIso
+        }
+      : r
+  );
+  saveLocalStore();
+  return true;
+}
+
+// همگام‌سازی کامل آرایه یک جدول (مورد استفاده در رابط وب و صف‌های دسته‌ای)
+async function replaceTableSnapshot(table: keyof AppDataStore, records: any[]): Promise<number> {
+  if (!Array.isArray(records)) return 0;
+
+  if (canUseMySQLForTable(table) && mysqlPool) {
+    try {
+      const incomingIds = new Set<string>();
+      for (const rec of records) {
+        if (!rec || !rec.id) continue;
+        const id = String(rec.id);
+        incomingIds.add(id);
+        await upsertTableRecord(table, 'update', id, rec);
+      }
+
+      // رکوردهای حذف‌شده در کلاینت به صورت Soft Delete علامت‌گذاری می‌شوند
+      const cols = dbSchemaCache.get(table)!;
+      if (cols.has('is_deleted')) {
+        const [existingRows] = await mysqlPool.query<RowDataPacket[]>(
+          `SELECT \`id\` FROM \`${table}\` WHERE COALESCE(\`is_deleted\`, 0) = 0`
+        );
+        for (const row of existingRows) {
+          const existingId = String(row.id);
+          if (!incomingIds.has(existingId)) {
+            await softDeleteTableRecord(table, existingId);
+          }
+        }
+      }
+      return records.length;
+    } catch (err: any) {
+      console.warn(`[MySQL] خطا در همگام‌سازی دسته‌ای جدول ${table}؛ بازگشت به JSON:`, err?.message);
+    }
+  }
+
+  // Fallback به JSON
+  const nowIso = new Date().toISOString();
+  const prevArray: any[] = Array.isArray((localStore as any)[table]) ? (localStore as any)[table] : [];
+  const prevMap = new Map(prevArray.map((r: any) => [String(r.id), r]));
+  const incomingIds = new Set<string>();
+
+  const nextArray = records.map((rec: any) => {
+    const id = String(rec.id || Math.random().toString(36).substring(2, 11));
+    incomingIds.add(id);
+    const prev = prevMap.get(id);
+    return {
+      ...normalizeRecordKeysForJson(table, rec),
+      id,
+      isDeleted: false,
+      is_deleted: 0,
+      version: prev ? (Number(prev.version) || 1) + 1 : (Number(rec.version) || 1),
+      updatedAt: nowIso
+    };
+  });
+
+  // حفظ رکوردهای حذف‌شده به شکل Soft Delete در JSON
+  for (const prev of prevArray) {
+    const prevId = String(prev.id);
+    if (!incomingIds.has(prevId)) {
+      nextArray.push({
+        ...prev,
+        isDeleted: true,
+        is_deleted: 1,
+        version: (Number(prev.version) || 1) + 1,
+        updatedAt: nowIso
+      });
+    }
+  }
+
+  (localStore as any)[table] = nextArray;
+  saveLocalStore();
+  return records.length;
+}
+
+// ثبت لاگ همگام‌سازی در جدول sync_logs در صورت اتصال به MySQL
+async function recordSyncLog(deviceId: string | undefined, syncType: 'push' | 'pull' | 'full', count: number, clientTime?: string) {
+  if (!isMySQLConnected || !mysqlPool || !dbSchemaCache.has('sync_logs')) return;
+  try {
+    await mysqlPool.query(
+      'INSERT INTO `sync_logs` (`device_id`, `sync_type`, `records_synced`, `client_time`) VALUES (?, ?, ?, ?)',
+      [deviceId || 'web_client', syncType, count, clientTime || new Date().toISOString()]
+    );
+  } catch {
+    // خطای لاگ نباید عملیات سینک را متوقف کند
+  }
+}
+
 // --- Supabase Client (Fault-tolerant with auto fallback) ---
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_ANON_KEY || '';
@@ -417,8 +1129,12 @@ function normalizeTableName(table: string): keyof AppDataStore {
 // API Routes
 app.get('/api/status', (req, res) => {
   res.json({
-    database: isSupabaseConfigured ? 'configured' : 'local_storage',
-    provider: 'سامانه مدیریت باغات پسته (ذخیره‌ساز بومی پایدار و آماده cPanel)',
+    database: isMySQLConnected ? 'mysql' : (isSupabaseConfigured ? 'configured' : 'local_storage'),
+    storageMode: isMySQLConnected ? 'mysql' : 'json_fallback',
+    mysqlConnected: isMySQLConnected,
+    provider: isMySQLConnected
+      ? 'سامانه مدیریت باغات پسته (متصل به پایگاه‌داده MySQL cPanel)'
+      : 'سامانه مدیریت باغات پسته (ذخیره‌ساز بومی پایدار JSON - حالت Fallback)',
     siteTitle: 'سامانه جامع مدیریت باغات پسته',
     themeColor: '#1a5c2a',
     offlineSupported: true,
@@ -426,16 +1142,55 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// Auth Login endpoint (Supports both Web and Mobile App clients)
-app.post('/api/auth/login', (req, res) => {
+// احراز هویت کاربر با MySQL و Fallback خودکار به JSON
+app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'نام کاربری و کلمه عبور الزامی است.' });
   }
 
-  const user = (localStore.users || []).find(
-    (u: any) => u.username.toLowerCase() === username.trim().toLowerCase() && u.password === password.trim()
-  );
+  const trimmedUsername = String(username).trim();
+  const trimmedPassword = String(password).trim();
+  let user: any = null;
+
+  // ۱. تلاش برای احراز هویت از MySQL
+  if (canUseMySQLForTable('users') && mysqlPool) {
+    try {
+      const cols = dbSchemaCache.get('users')!;
+      const extraConds: string[] = [];
+      if (cols.has('is_deleted')) extraConds.push('COALESCE(`is_deleted`, 0) = 0');
+      if (cols.has('is_active')) extraConds.push('COALESCE(`is_active`, 1) = 1');
+
+      const extraWhere = extraConds.length > 0 ? ` AND ${extraConds.join(' AND ')}` : '';
+      const [rows] = await mysqlPool.query<RowDataPacket[]>(
+        `SELECT * FROM \`users\` WHERE LOWER(\`username\`) = LOWER(?) AND \`password\` = ?${extraWhere} LIMIT 1`,
+        [trimmedUsername, trimmedPassword]
+      );
+
+      if (rows.length > 0) {
+        user = mapDbRowToClientRecord('users', rows[0]);
+      }
+    } catch (err: any) {
+      console.warn('[MySQL] خطا در احراز هویت از MySQL؛ بازگشت به JSON:', err?.message);
+      // در صورت بروز خطای اتصال، جستجو از فایل JSON انجام می‌شود
+      user = filterActiveJsonRecords(localStore.users || []).find(
+        (u: any) =>
+          String(u.username || '').toLowerCase() === trimmedUsername.toLowerCase() &&
+          String(u.password || '') === trimmedPassword &&
+          u.isActive !== false &&
+          Number(u.is_active) !== 0
+      );
+    }
+  } else {
+    // ۲. حالت Fallback به فایل JSON
+    user = filterActiveJsonRecords(localStore.users || []).find(
+      (u: any) =>
+        String(u.username || '').toLowerCase() === trimmedUsername.toLowerCase() &&
+        String(u.password || '') === trimmedPassword &&
+        u.isActive !== false &&
+        Number(u.is_active) !== 0
+    );
+  }
 
   if (!user) {
     return res.status(401).json({ error: 'نام کاربری یا کلمه عبور اشتباه است.' });
@@ -452,7 +1207,7 @@ app.post('/api/auth/login', (req, res) => {
       name: user.name,
       username: user.username,
       role: user.role,
-      ownerId: user.ownerId || user.farmerId
+      ownerId: user.ownerId || user.owner_id || user.farmerId
     }
   });
 });
@@ -477,33 +1232,92 @@ app.post('/api/settings', (req, res) => {
   res.json({ success: true, settings: { ...currentSettings, customApiKey: currentSettings.customApiKey ? '********' : '' } });
 });
 
-// Full Data Fetch Endpoint
+// دریافت کل داده‌های فعال سامانه (از MySQL و در صورت خطا از JSON)
 app.get('/api/data', async (req, res) => {
-  res.json({
-    users: localStore.users || defaultData.users,
-    owners: localStore.owners || defaultData.owners,
-    farmers: localStore.owners || defaultData.owners, // alias
-    waterSources: localStore.water_sources || defaultData.water_sources,
-    water_sources: localStore.water_sources || defaultData.water_sources,
-    lands: localStore.lands || defaultData.lands,
-    visits: localStore.visits || defaultData.visits,
-    labAnalyses: localStore.lab_analyses || defaultData.lab_analyses,
-    lab_analyses: localStore.lab_analyses || defaultData.lab_analyses,
-    tasks: localStore.tasks || defaultData.tasks,
-    messages: localStore.messages || defaultData.messages,
-    operations: localStore.operations || [],
-    products: localStore.products || [],
-    opTypes: localStore.op_types || defaultData.op_types,
-    op_types: localStore.op_types || defaultData.op_types,
-    consultations: localStore.consultations || [],
-    lookups: localStore.lookups || defaultData.lookups,
-    baseTables: localStore.lookups || defaultData.lookups
-  });
+  try {
+    const [
+      users,
+      owners,
+      waterSources,
+      lands,
+      visits,
+      labAnalyses,
+      tasks,
+      messages,
+      operations,
+      products,
+      opTypes,
+      consultations,
+      lookups
+    ] = await Promise.all([
+      getTableRows('users'),
+      getTableRows('owners'),
+      getTableRows('water_sources'),
+      getTableRows('lands'),
+      getTableRows('visits'),
+      getTableRows('lab_analyses'),
+      getTableRows('tasks'),
+      getTableRows('messages'),
+      getTableRows('operations'),
+      getTableRows('products'),
+      getTableRows('op_types'),
+      getTableRows('consultations'),
+      getTableRows('lookups')
+    ]);
+
+    // حفظ داده‌های پایه ضروری در صورت خالی بودن جداول اولیه (کاربران / واژگان / انواع عملیات)
+    const safeUsers = users.length > 0 ? users : defaultData.users;
+    const safeLookups = lookups.length > 0 ? lookups : defaultData.lookups;
+    const safeOpTypes = opTypes.length > 0 ? opTypes : defaultData.op_types;
+
+    res.json({
+      users: safeUsers,
+      owners,
+      farmers: owners, // alias
+      waterSources,
+      water_sources: waterSources,
+      lands,
+      visits,
+      labAnalyses,
+      lab_analyses: labAnalyses,
+      tasks,
+      messages,
+      operations,
+      products,
+      opTypes: safeOpTypes,
+      op_types: safeOpTypes,
+      consultations,
+      lookups: safeLookups,
+      baseTables: safeLookups
+    });
+  } catch (err: any) {
+    console.error('[API /api/data] خطا در بارگذاری داده‌ها؛ بازگشت به JSON:', err?.message);
+    res.json({
+      users: filterActiveJsonRecords(localStore.users || defaultData.users),
+      owners: filterActiveJsonRecords(localStore.owners || defaultData.owners),
+      farmers: filterActiveJsonRecords(localStore.owners || defaultData.owners),
+      waterSources: filterActiveJsonRecords(localStore.water_sources || defaultData.water_sources),
+      water_sources: filterActiveJsonRecords(localStore.water_sources || defaultData.water_sources),
+      lands: filterActiveJsonRecords(localStore.lands || defaultData.lands),
+      visits: filterActiveJsonRecords(localStore.visits || defaultData.visits),
+      labAnalyses: filterActiveJsonRecords(localStore.lab_analyses || defaultData.lab_analyses),
+      lab_analyses: filterActiveJsonRecords(localStore.lab_analyses || defaultData.lab_analyses),
+      tasks: filterActiveJsonRecords(localStore.tasks || defaultData.tasks),
+      messages: filterActiveJsonRecords(localStore.messages || defaultData.messages),
+      operations: filterActiveJsonRecords(localStore.operations || []),
+      products: filterActiveJsonRecords(localStore.products || []),
+      opTypes: filterActiveJsonRecords(localStore.op_types || defaultData.op_types),
+      op_types: filterActiveJsonRecords(localStore.op_types || defaultData.op_types),
+      consultations: filterActiveJsonRecords(localStore.consultations || []),
+      lookups: filterActiveJsonRecords(localStore.lookups || defaultData.lookups),
+      baseTables: filterActiveJsonRecords(localStore.lookups || defaultData.lookups)
+    });
+  }
 });
 
 // --- Delta Sync Endpoints (For Mobile App & Web Offline Engine) ---
 
-// 1. Sync PUSH: Process batch offline operations from mobile/web outbox queue
+// ۱. همگام‌سازی PUSH: پردازش صف آفلاین با پشتیبانی از Soft Delete، version و updated_at
 app.post('/api/sync/push', async (req, res) => {
   const { queue, deviceId, clientTime } = req.body;
   if (!Array.isArray(queue)) {
@@ -511,127 +1325,156 @@ app.post('/api/sync/push', async (req, res) => {
   }
 
   const appliedIds: string[] = [];
+  const failedItems: Array<{ id: string; error: string }> = [];
 
   for (const item of queue) {
-    const { id, table, action, recordId, data } = item;
-    const normKey = normalizeTableName(table);
-    let tableArray: any[] = (localStore as any)[normKey] || [];
+    const { id, table, action, recordId, data } = item || {};
+    if (!table || !action) continue;
 
-    if (action === 'insert') {
-      const existsIndex = tableArray.findIndex(r => r.id === (recordId || data?.id));
-      if (existsIndex >= 0) {
-        tableArray[existsIndex] = { ...tableArray[existsIndex], ...data };
-      } else {
-        tableArray = [data, ...tableArray];
-      }
-      appliedIds.push(id);
-    } else if (action === 'update') {
-      tableArray = tableArray.map(r => r.id === (recordId || data?.id) ? { ...r, ...data } : r);
-      appliedIds.push(id);
-    } else if (action === 'delete') {
-      tableArray = tableArray.filter(r => r.id !== (recordId || data?.id));
-      appliedIds.push(id);
+    const normKey = normalizeTableName(String(table));
+    if (!MYSQL_CORE_TABLES.includes(normKey)) {
+      failedItems.push({ id: String(id || ''), error: `جدول نامعتبر: ${table}` });
+      continue;
     }
 
-    (localStore as any)[normKey] = tableArray;
+    try {
+      // پشتیبانی از حالت ارسال آرایه کامل در صف آفلاین رابط وب
+      if (Array.isArray(data)) {
+        await replaceTableSnapshot(normKey, data);
+        if (id) appliedIds.push(id);
+        continue;
+      }
+
+      const targetId = String(recordId || data?.id || '');
+
+      if (action === 'insert') {
+        await upsertTableRecord(normKey, 'insert', targetId, data || {});
+        if (id) appliedIds.push(id);
+      } else if (action === 'update') {
+        await upsertTableRecord(normKey, 'update', targetId, data || {});
+        if (id) appliedIds.push(id);
+      } else if (action === 'delete') {
+        if (targetId) {
+          await softDeleteTableRecord(normKey, targetId);
+        }
+        if (id) appliedIds.push(id);
+      }
+    } catch (err: any) {
+      console.error(`[Sync Push] خطا در پردازش آیتم ${id} جدول ${normKey}:`, err?.message);
+      failedItems.push({ id: String(id || ''), error: err?.message || 'خطای ناشناخته' });
+    }
   }
 
-  saveLocalStore();
+  await recordSyncLog(deviceId, 'push', appliedIds.length, clientTime);
 
   res.json({
-    success: true,
+    success: failedItems.length === 0,
     appliedIds,
+    failedItems: failedItems.length > 0 ? failedItems : undefined,
+    storageMode: isMySQLConnected ? 'mysql' : 'json_fallback',
     serverTime: new Date().toISOString()
   });
 });
 
-// 2. Sync PULL: Delta sync changes for mobile apps
-app.get('/api/sync/pull', (req, res) => {
-  const since = req.query.since as string;
+// ۲. همگام‌سازی PULL: دریافت تغییرات (با پشتیبانی اختیاری از پارامتر since)
+app.get('/api/sync/pull', async (req, res) => {
+  const since = typeof req.query.since === 'string' ? req.query.since : undefined;
+  const [owners, lands, waterSources, visits, tasks, labAnalyses, lookups, messages] = await Promise.all([
+    getTableRows('owners', since),
+    getTableRows('lands', since),
+    getTableRows('water_sources', since),
+    getTableRows('visits', since),
+    getTableRows('tasks', since),
+    getTableRows('lab_analyses', since),
+    getTableRows('lookups', since),
+    getTableRows('messages', since)
+  ]);
+
   res.json({
     serverTime: new Date().toISOString(),
+    storageMode: isMySQLConnected ? 'mysql' : 'json_fallback',
     data: {
-      owners: localStore.owners,
-      lands: localStore.lands,
-      waterSources: localStore.water_sources,
-      visits: localStore.visits,
-      tasks: localStore.tasks,
-      labAnalyses: localStore.lab_analyses,
-      lookups: localStore.lookups,
-      messages: localStore.messages
+      owners,
+      lands,
+      waterSources,
+      visits,
+      tasks,
+      labAnalyses,
+      lookups: lookups.length > 0 ? lookups : defaultData.lookups,
+      messages
     }
   });
 });
 
-// Generic Table Sync Endpoint
+// همگام‌سازی کامل یک جدول (مورد استفاده رابط وب)
 app.post('/api/sync/:table', async (req, res) => {
   const { table } = req.params;
   const data = req.body;
   const normKey = normalizeTableName(table);
 
-  if (Array.isArray(data)) {
-    (localStore as any)[normKey] = data;
-    saveLocalStore();
+  if (!MYSQL_CORE_TABLES.includes(normKey)) {
+    return res.status(400).json({ success: false, error: 'نام جدول نامعتبر است.' });
   }
 
-  res.json({ success: true, count: Array.isArray(data) ? data.length : 0 });
+  const count = Array.isArray(data) ? await replaceTableSnapshot(normKey, data) : 0;
+  res.json({
+    success: true,
+    count,
+    storageMode: isMySQLConnected ? 'mysql' : 'json_fallback'
+  });
 });
 
 // --- Dedicated REST Endpoints for Mobile & Third-party Integrations ---
 
 // Lands CRUD
-app.get('/api/lands', (req, res) => res.json(localStore.lands || []));
-app.post('/api/lands', (req, res) => {
-  const newLand = { id: req.body.id || Math.random().toString(36).substring(2, 9), ...req.body };
-  localStore.lands = [newLand, ...(localStore.lands || [])];
-  saveLocalStore();
-  res.status(201).json(newLand);
+app.get('/api/lands', async (req, res) => res.json(await getTableRows('lands')));
+app.post('/api/lands', async (req, res) => {
+  const newId = req.body.id || Math.random().toString(36).substring(2, 9);
+  const meta = await upsertTableRecord('lands', 'insert', newId, { ...req.body, id: newId });
+  res.status(201).json({ ...req.body, id: meta.id, version: meta.version, updatedAt: meta.updatedAt });
 });
-app.put('/api/lands/:id', (req, res) => {
+app.put('/api/lands/:id', async (req, res) => {
   const { id } = req.params;
-  localStore.lands = (localStore.lands || []).map(l => l.id === id ? { ...l, ...req.body } : l);
-  saveLocalStore();
-  res.json({ success: true });
+  const meta = await upsertTableRecord('lands', 'update', id, req.body);
+  res.json({ success: true, version: meta.version, updatedAt: meta.updatedAt });
 });
-app.delete('/api/lands/:id', (req, res) => {
+app.delete('/api/lands/:id', async (req, res) => {
   const { id } = req.params;
-  localStore.lands = (localStore.lands || []).filter(l => l.id !== id);
-  saveLocalStore();
+  await softDeleteTableRecord('lands', id);
   res.json({ success: true });
 });
 
 // Visits CRUD
-app.get('/api/visits', (req, res) => res.json(localStore.visits || []));
-app.post('/api/visits', (req, res) => {
-  const newVisit = { id: req.body.id || Math.random().toString(36).substring(2, 9), ...req.body };
-  localStore.visits = [newVisit, ...(localStore.visits || [])];
-  saveLocalStore();
-  res.status(201).json(newVisit);
+app.get('/api/visits', async (req, res) => res.json(await getTableRows('visits')));
+app.post('/api/visits', async (req, res) => {
+  const newId = req.body.id || Math.random().toString(36).substring(2, 9);
+  const meta = await upsertTableRecord('visits', 'insert', newId, { ...req.body, id: newId });
+  res.status(201).json({ ...req.body, id: meta.id, version: meta.version, updatedAt: meta.updatedAt });
 });
-app.put('/api/visits/:id', (req, res) => {
+app.put('/api/visits/:id', async (req, res) => {
   const { id } = req.params;
-  localStore.visits = (localStore.visits || []).map(v => v.id === id ? { ...v, ...req.body } : v);
-  saveLocalStore();
-  res.json({ success: true });
+  const meta = await upsertTableRecord('visits', 'update', id, req.body);
+  res.json({ success: true, version: meta.version, updatedAt: meta.updatedAt });
 });
 
 // Tasks CRUD
-app.get('/api/tasks', (req, res) => res.json(localStore.tasks || []));
-app.post('/api/tasks', (req, res) => {
-  const newTask = { id: req.body.id || Math.random().toString(36).substring(2, 9), ...req.body };
-  localStore.tasks = [newTask, ...(localStore.tasks || [])];
-  saveLocalStore();
-  res.status(201).json(newTask);
+app.get('/api/tasks', async (req, res) => res.json(await getTableRows('tasks')));
+app.post('/api/tasks', async (req, res) => {
+  const newId = req.body.id || Math.random().toString(36).substring(2, 9);
+  const meta = await upsertTableRecord('tasks', 'insert', newId, { ...req.body, id: newId });
+  res.status(201).json({ ...req.body, id: meta.id, version: meta.version, updatedAt: meta.updatedAt });
 });
-app.put('/api/tasks/:id', (req, res) => {
+app.put('/api/tasks/:id', async (req, res) => {
   const { id } = req.params;
-  localStore.tasks = (localStore.tasks || []).map(t => t.id === id ? { ...t, ...req.body } : t);
-  saveLocalStore();
-  res.json({ success: true });
+  const meta = await upsertTableRecord('tasks', 'update', id, req.body);
+  res.json({ success: true, version: meta.version, updatedAt: meta.updatedAt });
 });
 
 // Lookups / Base Tables
-app.get('/api/lookups', (req, res) => res.json(localStore.lookups || defaultLookupItems));
+app.get('/api/lookups', async (req, res) => {
+  const rows = await getTableRows('lookups');
+  res.json(rows.length > 0 ? rows : defaultLookupItems);
+});
 
 // cPanel MySQL Schema Download / View Endpoint
 app.get('/api/database/sql-schema', (req, res) => {
@@ -701,7 +1544,12 @@ function normalizePhone(p: string | undefined | null): string {
 }
 
 // 1. Integration Status & Documentation
-app.get('/api/v1/integration/status', (req, res) => {
+app.get('/api/v1/integration/status', async (req, res) => {
+  const [owners, lands, tasks] = await Promise.all([
+    getTableRows('owners'),
+    getTableRows('lands'),
+    getTableRows('tasks')
+  ]);
   res.json({
     success: true,
     version: '1.0.0',
@@ -709,10 +1557,10 @@ app.get('/api/v1/integration/status', (req, res) => {
     storeApiUrl,
     isKeyConfigured: true,
     metrics: {
-      totalOwners: localStore.owners?.length || 0,
-      totalLands: localStore.lands?.length || 0,
-      totalTasks: localStore.tasks?.length || 0,
-      pendingTasks: (localStore.tasks || []).filter((t: any) => !t.farmerDone).length
+      totalOwners: owners.length,
+      totalLands: lands.length,
+      totalTasks: tasks.length,
+      pendingTasks: tasks.filter((t: any) => !t.farmerDone).length
     },
     endpoints: {
       prescriptions: '/api/v1/integration/prescriptions?mobile=09131234567',
@@ -733,7 +1581,7 @@ app.post('/api/v1/integration/config', (req, res) => {
 });
 
 // 2. Prescriptions endpoint for Store (درخواست سامانه فروش برای خواندن نسخه‌های فعال بر اساس شماره موبایل یا کدملی)
-app.get('/api/v1/integration/prescriptions', (req, res) => {
+app.get('/api/v1/integration/prescriptions', async (req, res) => {
   const authHeader = req.headers.authorization;
   const queryKey = req.query.apiKey as string;
   const token = authHeader?.replace(/^Bearer\s+/i, '') || queryKey;
@@ -752,9 +1600,15 @@ app.get('/api/v1/integration/prescriptions', (req, res) => {
   }
 
   const normTarget = normalizePhone(mobile as string);
+  const [allOwners, allLands, allTasks, allVisits] = await Promise.all([
+    getTableRows('owners'),
+    getTableRows('lands'),
+    getTableRows('tasks'),
+    getTableRows('visits')
+  ]);
 
   // Search in owners
-  const owner = (localStore.owners || []).find((o: any) => {
+  const owner = allOwners.find((o: any) => {
     const oPhone = normalizePhone(o.mobile || o.phone);
     if (normTarget && oPhone && oPhone === normTarget) return true;
     if (nationalId && o.nationalId === nationalId) return true;
@@ -769,15 +1623,15 @@ app.get('/api/v1/integration/prescriptions', (req, res) => {
   }
 
   // Find farmer lands
-  const lands = (localStore.lands || []).filter((l: any) => l.ownerId === owner.id);
+  const lands = allLands.filter((l: any) => l.ownerId === owner.id);
   const landMap = new Map(lands.map((l: any) => [l.id, l]));
 
   // Find active / pending tasks for these lands
   const landIds = new Set(lands.map((l: any) => l.id));
-  const activeTasks = (localStore.tasks || []).filter((t: any) => landIds.has(t.landId) && !t.farmerDone);
+  const activeTasks = allTasks.filter((t: any) => landIds.has(t.landId) && !t.farmerDone);
 
   // Also include latest visit recommendations
-  const recentVisits = (localStore.visits || []).filter((v: any) => landIds.has(v.landId) && v.expertRecommendation);
+  const recentVisits = allVisits.filter((v: any) => landIds.has(v.landId) && v.expertRecommendation);
 
   // Build structured prescriptions response - purely agronomic & dynamic
   const prescriptions = activeTasks.map((task: any) => {
@@ -785,9 +1639,6 @@ app.get('/api/v1/integration/prescriptions', (req, res) => {
     const area = land.areaHectares ? Number(land.areaHectares) : 1;
     const matchedInputs = matchProductsForTask(task, land);
 
-    // Extract agronomic intent directly from expert task
-    const content = `${task.title || ''} ${task.description || ''} ${task.sourceRecommendation || ''}`;
-    
     // Pure technical requirement for store to match against its actual live inventory
     const agronomicNeed = {
       title: task.title,
@@ -857,7 +1708,7 @@ app.get('/api/v1/integration/prescriptions', (req, res) => {
 });
 
 // 3. Webhook Order Sync (فروشگاه پس از پرداخت فاکتور این اندپوینت را فراخوانی می‌کند)
-app.post('/api/v1/integration/order-sync', (req, res) => {
+app.post('/api/v1/integration/order-sync', async (req, res) => {
   const { mobile, orderId, items, totalAmount, landId, date, storeInvoiceNumber } = req.body;
 
   if (!mobile || !items || !Array.isArray(items)) {
@@ -865,10 +1716,14 @@ app.post('/api/v1/integration/order-sync', (req, res) => {
   }
 
   const normTarget = normalizePhone(mobile);
-  const owner = (localStore.owners || []).find((o: any) => normalizePhone(o.mobile || o.phone) === normTarget);
+  const [allOwners, allLands] = await Promise.all([
+    getTableRows('owners'),
+    getTableRows('lands')
+  ]);
+  const owner = allOwners.find((o: any) => normalizePhone(o.mobile || o.phone) === normTarget);
 
   // Find target land
-  const lands = owner ? (localStore.lands || []).filter((l: any) => l.ownerId === owner.id) : [];
+  const lands = owner ? allLands.filter((l: any) => l.ownerId === owner.id) : [];
   const targetLand = lands.find((l: any) => l.id === landId) || lands[0] || { id: '1', name: 'باغ اصلی' };
 
   const operationRecord = {
@@ -882,8 +1737,7 @@ app.post('/api/v1/integration/order-sync', (req, res) => {
     cost: Number(totalAmount) || 0
   };
 
-  localStore.operations = [operationRecord, ...(localStore.operations || [])];
-  saveLocalStore();
+  await upsertTableRecord('operations', 'insert', operationRecord.id, operationRecord);
 
   res.json({
     success: true,
@@ -928,6 +1782,9 @@ app.post('/api/v1/integration/sso-token', (req, res) => {
 
 // Start Server
 async function startServer() {
+  // تلاش برای اتصال به MySQL پیش از شروع سرویس‌دهی (در صورت شکست، Fallback خودکار به JSON فعال است)
+  await initMySQL();
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -971,7 +1828,8 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Pistachio Management Server running on http://localhost:${PORT}`);
+    const modeLabel = isMySQLConnected ? 'MySQL (cPanel)' : 'JSON Fallback (agri_storage.json)';
+    console.log(`Pistachio Management Server running on http://localhost:${PORT} [${modeLabel}]`);
   });
 }
 
